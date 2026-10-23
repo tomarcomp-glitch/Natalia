@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#17594A">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Delícias Caseiras da Naty</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap">
+<style>
+:root{--bg:#F2F4F1;--card:#fff;--ink:#1E2B28;--mut:#5F6E69;--brand:#17594A;--onbrand:#fff;--gold:#D69A1E;--bad:#B3382C;--line:#D9DFDB;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121917;--card:#1B2522;--ink:#E8EEEB;--mut:#96A59F;--brand:#4DB89E;--onbrand:#0c1512;--gold:#E3B04B;--bad:#E2766B;--line:#2C3A36;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121917;--card:#1B2522;--ink:#E8EEEB;--mut:#96A59F;--brand:#4DB89E;--onbrand:#0c1512;--gold:#E3B04B;--bad:#E2766B;--line:#2C3A36;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Bricolage Grotesque",system-ui,sans-serif}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:10}
+header{position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);z-index:5;border-bottom:1px solid var(--line)}
+h1{font-size:20px;font-weight:800;margin:0;padding:12px 16px 4px}
+nav{display:flex;gap:6px;overflow-x:auto;padding:6px 16px 10px}
+nav button{flex:none;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:20px;padding:7px 14px;font:inherit;cursor:pointer}
+nav button.on{background:var(--brand);color:var(--onbrand);border-color:var(--brand)}
+main{max-width:820px;margin:0 auto;padding:16px}
+h2{font-size:17px;font-weight:600;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+summary{cursor:pointer}details[open]>summary{margin-bottom:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat b{display:block;font-size:24px;font-weight:800}.stat span,.mut{color:var(--mut);font-size:13px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;align-items:end}
+label{display:block;font-size:12px;color:var(--mut)}
+input,select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px}
+button.b{font:inherit;font-weight:600;background:var(--brand);color:var(--onbrand);border:0;border-radius:8px;padding:10px 14px;cursor:pointer}
+button.l{font:inherit;background:none;border:0;color:var(--bad);cursor:pointer;padding:4px}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--mut);font-weight:400}
+.tag{display:inline-block;border-radius:10px;padding:1px 9px;font-size:12px;background:var(--line)}
+.tag.bad{background:var(--bad);color:#fff}.tag.ok{background:var(--brand);color:var(--onbrand)}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;display:none;z-index:20;max-width:90%}
+</style>
+</head>
+<body>
+<header><h1>Delícias Caseiras da Naty</h1><nav id="nav"></nav></header>
+<main id="v"></main>
+<div id="toast" role="status"></div>
+<script>
+const K="meuforno.v1",EMPTY=()=>({insumos:[],mov:[],prod:[],producoes:[],vendas:[],plano:{}});
+let S=EMPTY();try{const r=localStorage.getItem(K);if(r)S=Object.assign(EMPTY(),JSON.parse(r))}catch(e){}
+let ab={},tab="painel",dir=null,bkMsg="Nenhuma pasta escolhida.",needPerm=false,timer;
+const $=i=>document.getElementById(i),g=i=>$(i).value,n=i=>parseFloat(String(g(i)).replace(",","."))||0;
+const uid=()=>Math.random().toString(36).slice(2,9);
+const brl=v=>(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const num=v=>(Math.round((v||0)*100)/100).toLocaleString("pt-BR");
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const hoje=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
+const dt=d=>d.split("-").reverse().join("/");
+const ins=id=>S.insumos.find(i=>i.id===id),pr=id=>S.prod.find(p=>p.id===id);
+const saldo=id=>S.mov.filter(m=>m.i===id).reduce((a,m)=>a+m.q,0);
+const pronto=id=>S.producoes.filter(p=>p.p===id).reduce((a,p)=>a+p.q,0)-S.vendas.filter(v=>v.p===id&&v.st!=="ag").reduce((a,v)=>a+v.q,0);
+const custoProd=p=>p.f.reduce((a,x)=>a+x.q*((ins(x.i)||{}).custo||0),0)/(p.r||1);
+const opts=(l,f)=>l.map(x=>`<option value="${x.id}">${esc(f(x))}</option>`).join("");
+function toast(t){const e=$("toast");e.textContent=t;e.style.display="block";clearTimeout(e._t);e._t=setTimeout(()=>e.style.display="none",3200)}
+function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}clearTimeout(timer);timer=setTimeout(fazerBackup,500);render()}
+
+/* ---------- Backup ---------- */
+const idb=()=>new Promise((ok,no)=>{const r=indexedDB.open("meuforno",1);r.onupgradeneeded=()=>r.result.createObjectStore("h");r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+async function hput(h){const d=await idb();d.transaction("h","readwrite").objectStore("h").put(h,"dir")}
+async function hget(){try{const d=await idb();return await new Promise(ok=>{const q=d.transaction("h").objectStore("h").get("dir");q.onsuccess=()=>ok(q.result);q.onerror=()=>ok(null)})}catch(e){return null}}
+async function escolherPasta(){
+  if(!window.showDirectoryPicker){bkMsg="Este navegador não permite escolher pasta. Use “Baixar backup”. No Chrome ou Edge no computador, a pasta funciona.";return render()}
+  try{dir=await showDirectoryPicker({mode:"readwrite"});needPerm=false;try{await hput(dir)}catch(e){}await fazerBackup()}
+  catch(e){bkMsg=e.name==="AbortError"?"Escolha de pasta cancelada.":"Não foi possível usar a pasta: "+e.message}
+  render()}
+async function reativar(){try{if(await dir.requestPermission({mode:"readwrite"})==="granted"){needPerm=false;await fazerBackup()}}catch(e){bkMsg=e.message}render()}
+async function fazerBackup(){
+  if(!dir)return;
+  try{
+    if(await dir.queryPermission({mode:"readwrite"})!=="granted"){needPerm=true;bkMsg="A permissão da pasta expirou. Toque em “Reativar pasta”.";return render()}
+    const js=JSON.stringify(S,null,1);
+    for(const nm of ["backup-meu-forno-atual.json","backup-meu-forno-"+hoje()+".json"]){const f=await dir.getFileHandle(nm,{create:true}),w=await f.createWritable();await w.write(js);await w.close()}
+    bkMsg="Último backup automático: "+new Date().toLocaleString("pt-BR")+" na pasta “"+dir.name+"”."
+  }catch(e){bkMsg="Falha no backup: "+e.message}
+  render()}
+function baixar(){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:"application/json"}));a.download="backup-meu-forno-"+hoje()+".json";a.click();toast("Backup baixado.")}
+function restaurar(ev){const f=ev.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{S=Object.assign(EMPTY(),JSON.parse(r.result));save();toast("Dados restaurados.")}catch(e){toast("Arquivo inválido.")}};r.readAsText(f)}
+
+/* ---------- Ações ---------- */
+function addInsumo(){const nome=g("in").trim();if(!nome)return toast("Informe o nome do item.");S.insumos.push({id:uid(),nome,un:g("iu"),min:n("im"),custo:n("ic")});save()}
+function movimento(){const i=g("mi");if(!i)return toast("Cadastre um item primeiro.");const t=g("mt"),v=n("mq");if(v<0||(t!=="c"&&v===0))return toast("Informe a quantidade.");
+  let q=t==="e"?v:t==="s"?-v:v-saldo(i);
+  if(t==="e"&&n("mc")>0)ins(i).custo=n("mc");
+  S.mov.push({id:uid(),i,q,d:hoje(),o:g("mo")||({e:"Entrada",s:"Saída",c:"Contagem"})[t]});save()}
+function delInsumo(id){if(S.mov.some(m=>m.i===id)||S.prod.some(p=>p.f.some(x=>x.i===id)))return toast("Item com movimentos ou usado em ficha não pode ser excluído.");S.insumos=S.insumos.filter(i=>i.id!==id);save()}
+function addProd(){const nome=g("pn").trim();if(!nome)return toast("Informe o nome do produto.");const id=uid();ab[id]=true;S.prod.push({id,nome,preco:n("pp"),r:n("pr")||1,f:[]});save()}
+function addFicha(p){const i=g("fi"+p),q=n("fq"+p);if(!i||q<=0)return toast("Escolha o item e a quantidade.");const pd=pr(p),x=pd.f.find(a=>a.i===i);x?x.q+=q:pd.f.push({i,q});save()}
+function delFicha(p,i){const pd=pr(p);pd.f=pd.f.filter(x=>x.i!==i);save()}
+function editProd(id,k,v){const p=pr(id);if(k==="nome"){v=v.trim();if(!v){toast("O nome não pode ficar vazio.");return render()}}else{v=parseFloat(String(v).replace(",","."))||0;if(k==="r"&&v<=0){toast("O rendimento deve ser maior que zero.");return render()}}p[k]=v;save()}
+function editQtd(p,i,v){v=parseFloat(String(v).replace(",","."))||0;if(v<=0){toast("A quantidade deve ser maior que zero.");return render()}pr(p).f.find(a=>a.i===i).q=v;save()}
+function delProd(id){if(S.producoes.some(p=>p.p===id)||S.vendas.some(v=>v.p===id))return toast("Produto com produção ou vendas não pode ser excluído.");S.prod=S.prod.filter(p=>p.id!==id);save()}
+function falta(p,q){return p.f.map(x=>({x,need:x.q*q/p.r})).filter(o=>saldo(o.x.i)<o.need-1e-9)}
+function produzir(){const p=pr(g("xp")),q=n("xq");if(!p||q<=0)return toast("Escolha o produto e a quantidade.");
+  if(!p.f.length)return toast("Este produto não tem ficha técnica.");
+  const f=falta(p,q);if(f.length)return toast("Falta estoque: "+f.map(o=>ins(o.x.i).nome).join(", "));
+  const id=uid();S.producoes.push({id,p:p.id,q,d:hoje()});
+  p.f.forEach(x=>S.mov.push({id:uid(),i:x.i,q:-(x.q*q/p.r),d:hoje(),o:"Produção: "+p.nome,ref:id}));save()}
+function delProducao(id){const x=S.producoes.find(a=>a.id===id);if(pronto(x.p)<x.q)return toast("Parte desta produção já foi vendida.");S.producoes=S.producoes.filter(a=>a.id!==id);S.mov=S.mov.filter(m=>m.ref!==id);save()}
+function vender(){const p=pr(g("vp")),q=n("vq");if(!p||q<=0)return toast("Escolha o produto e a quantidade.");
+  const ag=g("vt")==="ag";if(!ag&&pronto(p.id)<q)return toast("Só há "+num(pronto(p.id))+" un. de "+p.nome+" prontas.");
+  S.vendas.push({id:uid(),p:p.id,q,pv:n("vv"),c:custoProd(p),d:g("vd")||hoje(),de:g("ve"),cli:g("vc").trim(),fp:g("vf"),pg:g("vg")==="s",st:ag?"ag":"ok"});save()}
+function concluir(id,pago){const v=S.vendas.find(a=>a.id===id),p=pr(v.p);if(pronto(v.p)<v.q)return toast("Só há "+num(pronto(v.p))+" un. de "+p.nome+" prontas. Registre a produção antes.");v.st="ok";v.fp=g("fp"+id);v.pg=pago;v.c=custoProd(p);save()}
+function lembretes(){const ag=S.vendas.filter(v=>v.st==="ag").sort((a,b)=>(a.de||"9").localeCompare(b.de||"9"));if(!ag.length)return "";
+  const h=hoje(),am=new Date(Date.now()-new Date().getTimezoneOffset()*6e4+864e5).toISOString().slice(0,10),need={};ag.forEach(v=>need[v.p]=(need[v.p]||0)+v.q);
+  const ps=Object.keys(need).map(id=>({p:pr(id),n:need[id],t:pronto(id)})).filter(o=>o.p);
+  const prazo=d=>!d?"":d<h?'<span class="tag bad">Atrasada</span>':d===h?'<span class="tag bad">Hoje</span>':d===am?'<span class="tag">Amanhã</span>':"";
+  return `<h2>Lembretes de produção</h2><div class="card">${ps.map(o=>{const f=Math.max(0,o.n-o.t),inf=`<span class="mut">(encomendas ${num(o.n)}, prontas ${num(o.t)})</span>`;return `<div><b>${esc(o.p.nome)}</b>: ${f?`produzir <b>${num(f)} un.</b> ${inf}`:`<span class="tag ok">estoque cobre</span> ${inf}`}</div>`}).join("")}<div class="mut" style="margin-top:8px">Próximas entregas</div>${ag.slice(0,8).map(v=>`<div>${v.de?dt(v.de):"sem data"} ${prazo(v.de)} · ${esc((pr(v.p)||{nome:"?"}).nome)} ${num(v.q)} un.${v.cli?" · "+esc(v.cli):""}</div>`).join("")}</div>`}
+function togglePago(id){const v=S.vendas.find(a=>a.id===id);v.pg=v.pg===false;save()}
+function delVenda(id){S.vendas=S.vendas.filter(v=>v.id!==id);save()}
+function setPlano(id,v){S.plano[id]=parseFloat(String(v).replace(",","."))||0;save()}
+const preencher=()=>{const p=pr(g("vp"));if(p)$("vv").value=p.preco};
+
+/* ---------- Telas ---------- */
+const V={};
+V.painel=()=>{const h=hoje(),m=h.slice(0,7),vs=f=>S.vendas.filter(v=>v.st!=="ag"&&f(v)),t=(l,k)=>l.reduce((a,v)=>a+k(v),0);
+  const d=vs(v=>v.d===h),ms=vs(v=>v.d.slice(0,7)===m),fat=t(ms,v=>v.q*v.pv),luc=fat-t(ms,v=>v.q*v.c);
+  const baixos=S.insumos.filter(i=>saldo(i.id)<=i.min);
+  const top=S.prod.map(p=>({p,q:t(S.vendas.filter(v=>v.p===p.id&&v.st!=="ag"),v=>v.q)})).filter(o=>o.q>0).sort((a,b)=>b.q-a.q).slice(0,5);
+  return `${lembretes()}<div class="grid">
+  <div class="card stat"><b>${brl(t(d,v=>v.q*v.pv))}</b><span>Vendas de hoje</span></div>
+  <div class="card stat"><b>${brl(fat)}</b><span>Vendas do mês</span></div>
+  <div class="card stat"><b>${brl(luc)}</b><span>Lucro estimado no mês</span></div>
+  <div class="card stat"><b>${fat?Math.round(luc/fat*100):0}%</b><span>Margem do mês</span></div></div>
+  <h2>Itens para repor</h2><div class="card">${baixos.length?baixos.map(i=>`<div>${esc(i.nome)}: <b>${num(saldo(i.id))} ${i.un}</b> <span class="mut">(mínimo ${num(i.min)})</span></div>`).join(""):'<span class="mut">Nenhum item abaixo do mínimo.</span>'}</div>
+  <h2>Produtos prontos para vender</h2><div class="card">${S.prod.length?S.prod.map(p=>`<div>${esc(p.nome)}: <b>${num(pronto(p.id))} un.</b></div>`).join(""):'<span class="mut">Cadastre produtos na aba Fichas.</span>'}</div>
+  <h2>Mais vendidos</h2><div class="card">${top.length?top.map(o=>`<div>${esc(o.p.nome)}: <b>${num(o.q)} un.</b></div>`).join(""):'<span class="mut">Sem vendas registradas.</span>'}</div>`};
+
+V.estoque=()=>{const u=["kg","g","L","ml","un","dúzia","pacote"];
+  return `<div class="card"><b>Novo item</b><div class="row"><div><label>Nome</label><input id="in" placeholder="Farinha de trigo"></div>
+  <div><label>Unidade</label><select id="iu">${u.map(x=>`<option>${x}</option>`).join("")}</select></div>
+  <div><label>Estoque mínimo</label><input id="im" inputmode="decimal" value="0"></div>
+  <div><label>Custo por unidade (R$)</label><input id="ic" inputmode="decimal" value="0"></div>
+  <button class="b" onclick="addInsumo()">Cadastrar item</button></div></div>
+  <div class="card"><b>Registrar movimento</b><div class="row"><div><label>Item</label><select id="mi">${opts(S.insumos,i=>i.nome+" ("+i.un+")")}</select></div>
+  <div><label>Tipo</label><select id="mt"><option value="e">Entrada (compra)</option><option value="s">Saída (perda, uso)</option><option value="c">Contagem (acertar saldo)</option></select></div>
+  <div><label>Quantidade</label><input id="mq" inputmode="decimal"></div>
+  <div><label>Novo custo/un. (só entrada)</label><input id="mc" inputmode="decimal"></div>
+  <div><label>Observação</label><input id="mo"></div><button class="b" onclick="movimento()">Registrar</button></div></div>
+  <h2>Saldo atual</h2><div class="card tw">${S.insumos.length?`<table><tr><th>Item</th><th>Saldo</th><th>Mínimo</th><th>Custo/un.</th><th></th></tr>${S.insumos.map(i=>{const s=saldo(i.id);return `<tr><td>${esc(i.nome)}</td><td><b>${num(s)} ${i.un}</b> ${s<=i.min?'<span class="tag bad">repor</span>':'<span class="tag ok">ok</span>'}</td><td>${num(i.min)}</td><td>${brl(i.custo)}</td><td><button class="l" onclick="delInsumo('${i.id}')">Excluir</button></td></tr>`}).join("")}</table>`:'<span class="mut">Cadastre o primeiro item acima.</span>'}</div>
+  <h2>Últimos movimentos</h2><div class="card tw"><table>${S.mov.slice(-15).reverse().map(m=>`<tr><td>${dt(m.d)}</td><td>${esc((ins(m.i)||{nome:"?"}).nome)}</td><td><b style="color:var(${m.q<0?"--bad":"--brand"})">${m.q>0?"+":""}${num(m.q)}</b></td><td class="mut">${esc(m.o)}</td></tr>`).join("")||'<tr><td class="mut">Sem movimentos.</td></tr>'}</table></div>`};
+
+V.fichas=()=>`<div class="card"><b>Novo produto</b><div class="row"><div><label>Nome</label><input id="pn" placeholder="Pão de queijo"></div>
+  <div><label>Preço de venda (R$)</label><input id="pp" inputmode="decimal"></div>
+  <div><label>Rendimento da receita (unidades)</label><input id="pr" inputmode="decimal" value="1"></div>
+  <button class="b" onclick="addProd()">Cadastrar produto</button></div></div>
+  ${S.prod.map(p=>{const c=custoProd(p),mg=p.preco?Math.round((p.preco-c)/p.preco*100):0;return `<details class="card" ${ab[p.id]?"open":""} ontoggle="ab['${p.id}']=this.open"><summary><b>${esc(p.nome)}</b> <span class="mut">${p.f.length} ingr. · custo ${brl(c)} · preço ${brl(p.preco)} · margem ${mg}%</span></summary><div class="row" style="margin-top:10px"><div><label>Nome</label><input value="${esc(p.nome)}" onchange="editProd('${p.id}','nome',this.value)"></div><div><label>Preço de venda (R$)</label><input inputmode="decimal" value="${p.preco}" onchange="editProd('${p.id}','preco',this.value)"></div><div><label>Rendimento (unidades)</label><input inputmode="decimal" value="${p.r}" onchange="editProd('${p.id}','r',this.value)"></div></div>
+  
+  <div class="tw"><table>${p.f.map(x=>{const i=ins(x.i)||{nome:"?",un:"",custo:0};return `<tr><td>${esc(i.nome)}</td><td><input style="width:90px" inputmode="decimal" value="${x.q}" onchange="editQtd('${p.id}','${x.i}',this.value)"> ${i.un}</td><td>${brl(x.q*i.custo)}</td><td><button class="l" onclick="delFicha('${p.id}','${x.i}')">Remover</button></td></tr>`}).join("")||'<tr><td class="mut">Ficha vazia. Adicione os ingredientes.</td></tr>'}</table></div>
+  <div class="row"><div><label>Ingrediente</label><select id="fi${p.id}">${opts(S.insumos,i=>i.nome+" ("+i.un+")")}</select></div>
+  <div><label>Qtd. por receita</label><input id="fq${p.id}" inputmode="decimal"></div><button class="b" onclick="addFicha('${p.id}')">Adicionar</button></div>
+  <button class="l" onclick="delProd('${p.id}')">Excluir produto</button></details>`}).join("")}`;
+
+V.producao=()=>`<div class="card"><b>Registrar produção</b><div class="mut">Os ingredientes saem do estoque e os produtos entram como prontos.</div>
+  <div class="row"><div><label>Produto</label><select id="xp">${opts(S.prod,p=>p.nome)}</select></div>
+  <div><label>Unidades produzidas</label><input id="xq" inputmode="decimal"></div><button class="b" onclick="produzir()">Registrar produção</button></div></div>
+  <h2>Histórico</h2><div class="card tw"><table>${S.producoes.slice(-20).reverse().map(x=>`<tr><td>${dt(x.d)}</td><td>${esc((pr(x.p)||{nome:"?"}).nome)}</td><td><b>${num(x.q)} un.</b></td><td><button class="l" onclick="delProducao('${x.id}')">Desfazer</button></td></tr>`).join("")||'<tr><td class="mut">Nenhuma produção.</td></tr>'}</table></div>`;
+
+V.vendas=()=>`<div class="card"><b>Registrar venda</b><div class="mut">Venda agora abate o estoque na hora. Encomenda agendada abate só quando você concluir a entrega.</div>
+  <div class="row"><div><label>Tipo</label><select id="vt" onchange="if(this.value==='ag'){$('vf').value='Outro';$('vg').value='n'}"><option value="ok">Vender agora</option><option value="ag">Agendar encomenda</option></select></div><div><label>Produto</label><select id="vp" onchange="preencher()">${S.prod.map(p=>`<option value="${p.id}">${esc(p.nome)} (${num(pronto(p.id))} prontos)</option>`).join("")}</select></div>
+  <div><label>Quantidade</label><input id="vq" inputmode="decimal" value="1"></div>
+  <div><label>Preço unitário (R$)</label><input id="vv" inputmode="decimal" value="${S.prod[0]?S.prod[0].preco:0}"></div>
+  <div><label>Nome do cliente</label><input id="vc" placeholder="Maria"></div>
+  <div><label>Data da encomenda</label><input id="vd" type="date" value="${hoje()}"></div>
+  <div><label>Data da entrega</label><input id="ve" type="date" value="${hoje()}"></div>
+  <div><label>Forma de pagamento</label><select id="vf"><option>Pix</option><option>Dinheiro</option><option>Cartão de débito</option><option>Cartão de crédito</option><option>Outro</option></select></div>
+  <div><label>Já pagou?</label><select id="vg"><option value="s">Sim</option><option value="n">Não</option></select></div>
+  <button class="b" onclick="vender()">Registrar venda</button></div></div>
+  <h2>Últimas vendas</h2><div class="mut">A receber: <b>${brl(S.vendas.filter(v=>v.pg===false).reduce((a,v)=>a+v.q*v.pv,0))}</b></div><div class="card">${[...S.vendas.filter(v=>v.st==="ag").sort((a,b)=>(a.de||"9").localeCompare(b.de||"9")),...S.vendas.filter(v=>v.st!=="ag").slice(-30).reverse()].map(v=>`<div style="border-bottom:1px solid var(--line);padding:8px 0"><b>${esc((pr(v.p)||{nome:"?"}).nome)}</b> · ${num(v.q)} un. · <b>${brl(v.q*v.pv)}</b> <span class="tag ${v.st==="ag"?"":v.pg===false?"bad":"ok"}">${v.st==="ag"?"Agendada":v.pg===false?"A receber":"Pago"}</span><div class="mut">${v.cli?esc(v.cli)+" · ":""}Encomenda ${dt(v.d)}${v.de?" · Entrega "+dt(v.de):""} · ${esc(v.fp||"—")}</div>${v.st==="ag"?`<div class="row" style="margin-top:6px"><div><label>Forma de pagamento</label><select id="fp${v.id}">${["Pix","Dinheiro","Cartão de débito","Cartão de crédito","Outro"].map(x=>`<option${x===v.fp?" selected":""}>${x}</option>`).join("")}</select></div><button class="b" onclick="concluir('${v.id}',true)">Concluir e marcar pago</button><button class="b" onclick="concluir('${v.id}',false)">Concluir, a receber</button></div>`:`<button class="l" style="color:var(--brand)" onclick="togglePago('${v.id}')">${v.pg===false?"Marcar como pago":"Marcar como não pago"}</button>`}<button class="l" onclick="delVenda('${v.id}')">${v.st==="ag"?"Cancelar encomenda":"Desfazer"}</button></div>`).join("")||'<span class="mut">Nenhuma venda.</span>'}</div>`;
+
+V.compras=()=>{const need={};S.prod.forEach(p=>p.f.forEach(x=>need[x.i]=(need[x.i]||0)+x.q*(S.plano[p.id]||0)/p.r));
+  const rows=S.insumos.filter(i=>need[i.id]>0).map(i=>({i,nd:need[i.id],buy:Math.max(0,need[i.id]-saldo(i.id))}));
+  return `<div class="card"><b>Previsão de produção</b><div class="mut">Quantas unidades pretende produzir?</div>
+  ${S.prod.map(p=>`<div class="row"><div><label>${esc(p.nome)}</label><input inputmode="decimal" value="${S.plano[p.id]||""}" onchange="setPlano('${p.id}',this.value)"></div></div>`).join("")||'<span class="mut">Cadastre produtos primeiro.</span>'}</div>
+  <h2>Necessidade de compra</h2><div class="card tw">${rows.length?`<table><tr><th>Item</th><th>Precisa</th><th>Tem</th><th>Comprar</th><th>Custo</th></tr>${rows.map(o=>`<tr><td>${esc(o.i.nome)}</td><td>${num(o.nd)} ${o.i.un}</td><td>${num(saldo(o.i.id))}</td><td><b>${o.buy?num(o.buy)+" "+o.i.un:"—"}</b></td><td>${brl(o.buy*o.i.custo)}</td></tr>`).join("")}</table>
+  <p><b>Total estimado: ${brl(rows.reduce((a,o)=>a+o.buy*o.i.custo,0))}</b></p>`:'<span class="mut">Informe a previsão acima para ver o que comprar.</span>'}</div>`};
+
+V.backup=()=>`<div class="card"><b>Backup automático</b><p class="mut">${esc(bkMsg)}</p>
+  <p class="mut">Depois de escolher a pasta, cada alteração grava um arquivo atual e um arquivo do dia. Funciona no Chrome ou Edge no computador. Em outros aparelhos, baixe o arquivo manualmente.</p>
+  <div class="row"><button class="b" onclick="escolherPasta()">Escolher pasta de backup</button>
+  ${needPerm?'<button class="b" onclick="reativar()">Reativar pasta</button>':""}
+  ${dir?'<button class="b" onclick="fazerBackup()">Fazer backup agora</button>':""}
+  <button class="b" onclick="baixar()">Baixar backup</button></div></div>
+  <div class="card"><b>Restaurar</b><p class="mut">Substitui todos os dados atuais pelos do arquivo.</p><input type="file" accept=".json" onchange="restaurar(event)"></div>`;
+
+const TABS=[["painel","Painel"],["estoque","Estoque"],["fichas","Fichas"],["producao","Produção"],["vendas","Vendas"],["compras","Compras"],["backup","Backup"]];
+function render(){$("nav").innerHTML=TABS.map(t=>`<button class="${t[0]===tab?"on":""}" onclick="tab='${t[0]}';render();scrollTo(0,0)">${t[1]}</button>`).join("");$("v").innerHTML=V[tab]()}
+render();
+hget().then(async h=>{if(!h)return;dir=h;try{needPerm=(await h.queryPermission({mode:"readwrite"}))!=="granted"}catch(e){}bkMsg=needPerm?"Pasta “"+h.name+"” salva. Toque em “Reativar pasta” para continuar os backups.":"Pasta de backup: “"+h.name+"”.";render()});
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js");
+</script>
+</body>
+</html>
