@@ -92,13 +92,29 @@ function addInsumo(){const nome=g("in").trim();if(!nome)return toast("Informe o 
 function movimento(){const i=g("mi");if(!i)return toast("Cadastre um item primeiro.");const t=g("mt"),v=n("mq");if(v<0||(t!=="c"&&v===0))return toast("Informe a quantidade.");
   let q=t==="e"?v:t==="s"?-v:v-saldo(i);
   if(t==="e"&&n("mc")>0)ins(i).custo=n("mc");
-  S.mov.push({id:uid(),i,q,d:hoje(),o:g("mo")||({e:"Entrada",s:"Saída",c:"Contagem"})[t]});save()}
+  S.mov.push({id:uid(),i,q,d:hoje(),o:g("mo")||({e:"Entrada",s:"Saída",c:"Contagem"})[t],t,c:t==="e"&&n("mc")>0?n("mc"):undefined});save()}
 function delInsumo(id){if(S.mov.some(m=>m.i===id)||S.prod.some(p=>p.f.some(x=>x.i===id)))return toast("Item com movimentos ou usado em ficha não pode ser excluído.");S.insumos=S.insumos.filter(i=>i.id!==id);save()}
 function addProd(){const nome=g("pn").trim();if(!nome)return toast("Informe o nome do produto.");const id=uid();ab[id]=true;S.prod.push({id,nome,preco:n("pp"),r:n("pr")||1,f:[]});save()}
 function addFicha(p){const i=g("fi"+p),q=n("fq"+p);if(!i||q<=0)return toast("Escolha o item e a quantidade.");const pd=pr(p),x=pd.f.find(a=>a.i===i);x?x.q+=q:pd.f.push({i,q});save()}
 function delFicha(p,i){const pd=pr(p);pd.f=pd.f.filter(x=>x.i!==i);save()}
 function editProd(id,k,v){const p=pr(id);if(k==="nome"){v=v.trim();if(!v){toast("O nome não pode ficar vazio.");return render()}}else{v=parseFloat(String(v).replace(",","."))||0;if(k==="r"&&v<=0){toast("O rendimento deve ser maior que zero.");return render()}}p[k]=v;save()}
 function editQtd(p,i,v){v=parseFloat(String(v).replace(",","."))||0;if(v<=0){toast("A quantidade deve ser maior que zero.");return render()}pr(p).f.find(a=>a.i===i).q=v;save()}
+const compra=m=>m.q>0&&!m.ref&&m.t!=="c"&&m.t!=="s"&&m.o!=="Contagem";
+let nCompras=30;
+const mais=()=>{nCompras+=30;render()};
+function trocaIng(p,a,b){if(a===b)return;const pd=pr(p),cur=pd.f.find(x=>x.i===a),ex=pd.f.find(x=>x.i===b);if(!cur)return;
+  if(ex){ex.q+=cur.q;pd.f=pd.f.filter(x=>x!==cur);toast("Esse ingrediente já estava na ficha: quantidades somadas.")}else cur.i=b;save()}
+function editCompra(id,k,v){const m=S.mov.find(a=>a.id===id);if(!m)return;
+  if(k==="q"){v=parseFloat(String(v).replace(",","."))||0;if(v<=0){toast("A quantidade deve ser maior que zero.");return render()}
+    if(saldo(m.i)-m.q+v<-1e-9){toast("Isso deixaria o estoque negativo: parte desta compra já foi usada.");return render()}m.q=v}
+  else if(k==="c"){v=parseFloat(String(v).replace(",","."))||0;m.c=v>0?v:undefined;
+    const ult=S.mov.filter(a=>a.i===m.i&&compra(a)).pop();if(ult===m&&m.c&&ins(m.i))ins(m.i).custo=m.c}
+  else if(k==="d"){if(!v){toast("Informe a data.");return render()}m.d=v}
+  else m.o=String(v).trim()||"Entrada";
+  save()}
+function delCompra(id){const m=S.mov.find(a=>a.id===id);if(!m)return;
+  if(saldo(m.i)-m.q<-1e-9)return toast("Não dá para excluir: parte desta compra já foi usada.");
+  S.mov=S.mov.filter(a=>a.id!==id);save()}
 function delProd(id){if(S.producoes.some(p=>p.p===id)||S.vendas.some(v=>v.p===id))return toast("Produto com produção ou vendas não pode ser excluído.");S.prod=S.prod.filter(p=>p.id!==id);save()}
 function falta(p,q){return p.f.map(x=>({x,need:x.q*q/p.r})).filter(o=>saldo(o.x.i)<o.need-1e-9)}
 function produzir(){const p=pr(g("xp")),q=n("xq");if(!p||q<=0)return toast("Escolha o produto e a quantidade.");
@@ -156,7 +172,7 @@ V.fichas=()=>`<div class="card"><b>Novo produto</b><div class="row"><div><label>
   <button class="b" onclick="addProd()">Cadastrar produto</button></div></div>
   ${S.prod.map(p=>{const c=custoProd(p),mg=p.preco?Math.round((p.preco-c)/p.preco*100):0;return `<details class="card" ${ab[p.id]?"open":""} ontoggle="ab['${p.id}']=this.open"><summary><b>${esc(p.nome)}</b> <span class="mut">${p.f.length} ingr. · custo ${brl(c)} · preço ${brl(p.preco)} · margem ${mg}%</span></summary><div class="row" style="margin-top:10px"><div><label>Nome</label><input value="${esc(p.nome)}" onchange="editProd('${p.id}','nome',this.value)"></div><div><label>Preço de venda (R$)</label><input inputmode="decimal" value="${p.preco}" onchange="editProd('${p.id}','preco',this.value)"></div><div><label>Rendimento (unidades)</label><input inputmode="decimal" value="${p.r}" onchange="editProd('${p.id}','r',this.value)"></div></div>
   
-  <div class="tw"><table>${p.f.map(x=>{const i=ins(x.i)||{nome:"?",un:"",custo:0};return `<tr><td>${esc(i.nome)}</td><td><input style="width:90px" inputmode="decimal" value="${x.q}" onchange="editQtd('${p.id}','${x.i}',this.value)"> ${i.un}</td><td>${brl(x.q*i.custo)}</td><td><button class="l" onclick="delFicha('${p.id}','${x.i}')">Remover</button></td></tr>`}).join("")||'<tr><td class="mut">Ficha vazia. Adicione os ingredientes.</td></tr>'}</table></div>
+  <div class="tw"><table>${p.f.map(x=>{const i=ins(x.i)||{nome:"?",un:"",custo:0};return `<tr><td><select style="min-width:150px" onchange="trocaIng('${p.id}','${x.i}',this.value)">${S.insumos.map(o=>`<option value="${o.id}" ${o.id===x.i?"selected":""}>${esc(o.nome)}</option>`).join("")}</select></td><td><input style="width:90px" inputmode="decimal" value="${x.q}" onchange="editQtd('${p.id}','${x.i}',this.value)"> ${i.un}</td><td>${brl(x.q*i.custo)}</td><td><button class="l" onclick="delFicha('${p.id}','${x.i}')">Remover</button></td></tr>`}).join("")||'<tr><td class="mut">Ficha vazia. Adicione os ingredientes.</td></tr>'}</table></div>
   <div class="row"><div><label>Ingrediente</label><select id="fi${p.id}">${opts(S.insumos,i=>i.nome+" ("+i.un+")")}</select></div>
   <div><label>Qtd. por receita</label><input id="fq${p.id}" inputmode="decimal"></div><button class="b" onclick="addFicha('${p.id}')">Adicionar</button></div>
   <button class="l" onclick="delProd('${p.id}')">Excluir produto</button></details>`}).join("")}`;
@@ -183,7 +199,14 @@ V.compras=()=>{const need={};S.prod.forEach(p=>p.f.forEach(x=>need[x.i]=(need[x.
   return `<div class="card"><b>Previsão de produção</b><div class="mut">Quantas unidades pretende produzir?</div>
   ${S.prod.map(p=>`<div class="row"><div><label>${esc(p.nome)}</label><input inputmode="decimal" value="${S.plano[p.id]||""}" onchange="setPlano('${p.id}',this.value)"></div></div>`).join("")||'<span class="mut">Cadastre produtos primeiro.</span>'}</div>
   <h2>Necessidade de compra</h2><div class="card tw">${rows.length?`<table><tr><th>Item</th><th>Precisa</th><th>Tem</th><th>Comprar</th><th>Custo</th></tr>${rows.map(o=>`<tr><td>${esc(o.i.nome)}</td><td>${num(o.nd)} ${o.i.un}</td><td>${num(saldo(o.i.id))}</td><td><b>${o.buy?num(o.buy)+" "+o.i.un:"—"}</b></td><td>${brl(o.buy*o.i.custo)}</td></tr>`).join("")}</table>
-  <p><b>Total estimado: ${brl(rows.reduce((a,o)=>a+o.buy*o.i.custo,0))}</b></p>`:'<span class="mut">Informe a previsão acima para ver o que comprar.</span>'}</div>`};
+  <p><b>Total estimado: ${brl(rows.reduce((a,o)=>a+o.buy*o.i.custo,0))}</b></p>`:'<span class="mut">Informe a previsão acima para ver o que comprar.</span>'}</div>
+  <h2>Compras realizadas</h2>${(()=>{const l=S.mov.filter(compra).reverse();if(!l.length)return '<div class="card"><span class="mut">Nenhuma compra registrada. Use Entrada na aba Estoque.</span></div>';
+  return l.slice(0,nCompras).map(m=>{const i=ins(m.i)||{nome:"?",un:"",custo:0};return `<div class="card"><b>${esc(i.nome)}</b> <span class="mut">${dt(m.d)}${m.c?" · total "+brl(m.q*m.c):""}</span>
+  <div class="row" style="margin-top:8px"><div><label>Data</label><input type="date" value="${m.d}" onchange="editCompra('${m.id}','d',this.value)"></div>
+  <div><label>Quantidade (${esc(i.un)})</label><input inputmode="decimal" value="${m.q}" onchange="editCompra('${m.id}','q',this.value)"></div>
+  <div><label>Custo por ${esc(i.un)} (R$)</label><input inputmode="decimal" value="${m.c||""}" onchange="editCompra('${m.id}','c',this.value)"></div>
+  <div><label>Observação</label><input value="${esc(m.o)}" onchange="editCompra('${m.id}','o',this.value)"></div>
+  <button class="l" onclick="delCompra('${m.id}')">Excluir</button></div></div>`}).join("")+(l.length>nCompras?`<button class="b" onclick="mais()">Ver mais compras (${l.length-nCompras})</button>`:"")})()}`};
 
 V.backup=()=>`<div class="card"><b>Backup automático</b><p class="mut">${esc(bkMsg)}</p>
   <p class="mut">Depois de escolher a pasta, cada alteração grava um arquivo atual e um arquivo do dia. Funciona no Chrome ou Edge no computador. Em outros aparelhos, baixe o arquivo manualmente.</p>
