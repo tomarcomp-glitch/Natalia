@@ -95,10 +95,10 @@ async function fazerBackup(){
     if(await dir.queryPermission({mode:"readwrite"})!=="granted"){needPerm=true;bkMsg="A permissão da pasta expirou. Toque em “Reativar pasta”.";return render()}
     const js=JSON.stringify(S,null,1);
     for(const nm of ["backup-meu-forno-atual.json","backup-meu-forno-"+hoje()+".json"]){const f=await dir.getFileHandle(nm,{create:true}),w=await f.createWritable();await w.write(js);await w.close()}
-    bkMsg="Último backup automático: "+new Date().toLocaleString("pt-BR")+" na pasta “"+dir.name+"”."
+    marcaBk();bkMsg="Último backup automático: "+new Date().toLocaleString("pt-BR")+" na pasta “"+dir.name+"”."
   }catch(e){bkMsg="Falha no backup: "+e.message}
   render()}
-function baixar(){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:"application/json"}));a.download="backup-meu-forno-"+hoje()+".json";a.click();toast("Backup baixado.")}
+function baixar(){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:"application/json"}));a.download="backup-meu-forno-"+hoje()+".json";a.click();marcaBk();toast("Backup baixado.");render()}
 function restaurar(ev){const f=ev.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{S=Object.assign(EMPTY(),JSON.parse(r.result));save();toast("Dados restaurados.")}catch(e){toast("Arquivo inválido.")}};r.readAsText(f)}
 
 /* ---------- Ações ---------- */
@@ -149,6 +149,31 @@ function editProducao(id,k,v){const x=S.producoes.find(a=>a.id===id);if(!x)retur
   if(r<1&&pronto(x.p)-(x.q-v)<-1e-9){toast("Parte desta produção já foi vendida.");return render()}
   if(r>1){const f=ms.filter(m=>saldo(m.i)<-m.q*(r-1)-1e-9);if(f.length){toast("Falta estoque: "+f.map(m=>(ins(m.i)||{nome:"?"}).nome).join(", "));return render()}}
   ms.forEach(m=>m.q*=r);x.q=v;save()}
+const BK="meuforno.bk";
+const ultBk=()=>{try{return localStorage.getItem(BK)||""}catch(e){return ""}};
+const marcaBk=()=>{try{localStorage.setItem(BK,hoje())}catch(e){}};
+const diasBk=()=>{const u=ultBk();return u?Math.max(0,Math.floor((new Date(hoje())-new Date(u))/864e5)):null};
+function avisoBk(){if(!(S.vendas.length||S.mov.length||S.prod.length))return "";const d=diasBk();if(d!==null&&d<7)return "";
+  return `<div class="card" style="border-color:var(--gold)"><b>Faça um backup</b><div class="mut" style="margin:4px 0 10px">${d===null?"Você ainda não baixou nenhum backup neste aparelho.":"Seu último backup foi há "+d+" dias."} Se o celular for trocado ou o navegador for limpo, os dados podem sumir.</div><button class="b" style="width:100%" onclick="baixar()">Baixar backup agora</button></div>`}
+function graficoMeses(){const h=hoje(),y=+h.slice(0,4),m0=+h.slice(5,7)-1,NM=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"],ms=[];
+  for(let i=5;i>=0;i--){const d=new Date(y,m0-i,1),k=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+    ms.push({k,r:NM[d.getMonth()],v:S.vendas.filter(x=>x.st!=="ag"&&x.d.slice(0,7)===k).reduce((a,x)=>a+x.q*x.pv,0)})}
+  const mx=Math.max(...ms.map(o=>o.v),1),W=300,H=150,bw=34,gap=(W-6*bw)/7;
+  const bars=ms.map((o,i)=>{const x=gap+i*(bw+gap),hh=Math.round(o.v/mx*100),y0=120-hh;return `<g><rect x="${x}" y="${y0}" width="${bw}" height="${hh}" rx="4" fill="var(--brand)" opacity="${i===5?1:.55}"/><text x="${x+bw/2}" y="${y0-5}" text-anchor="middle" font-size="10" fill="var(--ink)">${o.v?Math.round(o.v):""}</text><text x="${x+bw/2}" y="138" text-anchor="middle" font-size="11" fill="var(--mut)">${o.r}</text></g>`}).join("");
+  const a=ms[5].v,b=ms[4].v,dif=b?Math.round((a-b)/b*100):null;
+  return `<h2>Vendas por mês</h2><div class="card"><svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Vendas dos últimos 6 meses">${bars}</svg><div class="mut">Este mês ${brl(a)} · mês anterior ${brl(b)}${dif===null?"":" · "+(dif>=0?"+":"")+dif+"%"}</div></div>`}
+let fv={q:"",per:"todas",st:"todas"},nVend=30;
+const vendaCard=v=>`<div style="border-bottom:1px solid var(--line);padding:8px 0"><b>${esc((pr(v.p)||{nome:"?"}).nome)}</b> · ${num(v.q)} un. · <b>${brl(v.q*v.pv)}</b> <span class="tag ${v.st==="ag"?"":v.pg===false?"bad":"ok"}">${v.st==="ag"?"Agendada":v.pg===false?"A receber":"Pago"}</span><div class="mut">${v.cli?esc(v.cli)+" · ":""}Encomenda ${dt(v.d)}${v.de?" · Entrega "+dt(v.de):""} · ${esc(v.fp||"—")}</div>${v.st==="ag"?`<div class="row" style="margin-top:6px"><div><label>Forma de pagamento</label><select id="fp${v.id}">${["Pix","Dinheiro","Cartão de débito","Cartão de crédito","Outro"].map(x=>`<option${x===v.fp?" selected":""}>${x}</option>`).join("")}</select></div><button class="b" onclick="concluir('${v.id}',true)">Concluir e marcar pago</button><button class="b" onclick="concluir('${v.id}',false)">Concluir, a receber</button></div>`:`<button class="l" style="color:var(--brand)" onclick="togglePago('${v.id}')">${v.pg===false?"Marcar como pago":"Marcar como não pago"}</button>`}<button class="l" onclick="delVenda('${v.id}')">${v.st==="ag"?"Cancelar encomenda":"Desfazer"}</button></div>`;
+const vresRefresh=()=>{const e=$("vres");if(e)e.innerHTML=vendasLista()};
+const fvSet=(k,v)=>{fv[k]=v;nVend=30;vresRefresh()};
+const maisVend=()=>{nVend+=30;vresRefresh()};
+function vendasLista(){const h=hoje(),sem=new Date(Date.now()-new Date().getTimezoneOffset()*6e4-6*864e5).toISOString().slice(0,10),q=fv.q.trim().toLowerCase();
+  const ok=v=>{const dia=v.st==="ag"&&v.de?v.de:v.d;
+    if(q&&!((v.cli||"").toLowerCase().includes(q)||(pr(v.p)||{nome:""}).nome.toLowerCase().includes(q)))return false;
+    if(fv.per==="hoje"&&dia!==h)return false;if(fv.per==="sem"&&dia<sem)return false;if(fv.per==="mes"&&dia.slice(0,7)!==h.slice(0,7))return false;
+    if(fv.st==="ag")return v.st==="ag";if(fv.st==="rec")return v.st!=="ag"&&v.pg===false;if(fv.st==="pago")return v.st!=="ag"&&v.pg!==false;return true};
+  const l=S.vendas.filter(ok),ag=l.filter(v=>v.st==="ag").sort((a,b)=>(a.de||"9").localeCompare(b.de||"9")),cc=l.filter(v=>v.st!=="ag").reverse(),tot=cc.reduce((a,v)=>a+v.q*v.pv,0);
+  return `<div class="mut" style="margin-bottom:8px">A receber (geral): <b>${brl(S.vendas.filter(v=>v.pg===false).reduce((a,v)=>a+v.q*v.pv,0))}</b><br>Neste filtro: ${cc.length} concluída(s), <b>${brl(tot)}</b>${ag.length?" · "+ag.length+" agendada(s), fora do total":""}</div><div class="card">${[...ag,...cc.slice(0,nVend)].map(vendaCard).join("")||'<span class="mut">Nenhuma venda encontrada.</span>'}</div>${cc.length>nVend?`<button class="b" style="width:100%" onclick="maisVend()">Ver mais vendas (${cc.length-nVend})</button>`:""}`}
 function delProd(id){if(S.producoes.some(p=>p.p===id)||S.vendas.some(v=>v.p===id))return toast("Produto com produção ou vendas não pode ser excluído.");S.prod=S.prod.filter(p=>p.id!==id);save()}
 function falta(p,q){return p.f.map(x=>({x,need:x.q*q/p.r})).filter(o=>saldo(o.x.i)<o.need-1e-9)}
 function produzir(){const p=pr(g("xp")),q=n("xq");if(!p||q<=0)return toast("Escolha o produto e a quantidade.");
@@ -177,12 +202,12 @@ V.painel=()=>{const h=hoje(),m=h.slice(0,7),vs=f=>S.vendas.filter(v=>v.st!=="ag"
   const d=vs(v=>v.d===h),ms=vs(v=>v.d.slice(0,7)===m),fat=t(ms,v=>v.q*v.pv),luc=fat-t(ms,v=>v.q*v.c);
   const baixos=S.insumos.filter(i=>saldo(i.id)<=i.min);
   const top=S.prod.map(p=>({p,q:t(S.vendas.filter(v=>v.p===p.id&&v.st!=="ag"),v=>v.q)})).filter(o=>o.q>0).sort((a,b)=>b.q-a.q).slice(0,5);
-  return `${lembretes()}<div class="grid">
+  return `${avisoBk()}${lembretes()}<div class="grid">
   <div class="card stat"><b>${brl(t(d,v=>v.q*v.pv))}</b><span>Vendas de hoje</span></div>
   <div class="card stat"><b>${brl(fat)}</b><span>Vendas do mês</span></div>
   <div class="card stat"><b>${brl(luc)}</b><span>Lucro estimado no mês</span></div>
   <div class="card stat"><b>${fat?Math.round(luc/fat*100):0}%</b><span>Margem do mês</span></div></div>
-  <h2>Itens para repor</h2><div class="card">${baixos.length?baixos.map(i=>`<div>${esc(i.nome)}: <b>${num(saldo(i.id))} ${i.un}</b> <span class="mut">(mínimo ${num(i.min)})</span></div>`).join(""):'<span class="mut">Nenhum item abaixo do mínimo.</span>'}</div>
+  ${graficoMeses()}<h2>Itens para repor</h2><div class="card">${baixos.length?baixos.map(i=>`<div>${esc(i.nome)}: <b>${num(saldo(i.id))} ${i.un}</b> <span class="mut">(mínimo ${num(i.min)})</span></div>`).join(""):'<span class="mut">Nenhum item abaixo do mínimo.</span>'}</div>
   <h2>Produtos prontos para vender</h2><div class="card">${S.prod.length?S.prod.map(p=>`<div>${esc(p.nome)}: <b>${num(pronto(p.id))} un.</b></div>`).join(""):'<span class="mut">Cadastre produtos na aba Fichas.</span>'}</div>
   <h2>Mais vendidos</h2><div class="card">${top.length?top.map(o=>`<div>${esc(o.p.nome)}: <b>${num(o.q)} un.</b></div>`).join(""):'<span class="mut">Sem vendas registradas.</span>'}</div>`};
 
@@ -237,7 +262,11 @@ V.vendas=()=>`<div class="card"><b>Registrar venda</b><div class="mut">Venda ago
   <div><label>Forma de pagamento</label><select id="vf"><option>Pix</option><option>Dinheiro</option><option>Cartão de débito</option><option>Cartão de crédito</option><option>Outro</option></select></div>
   <div><label>Já pagou?</label><select id="vg"><option value="s">Sim</option><option value="n">Não</option></select></div>
   <button class="b" onclick="vender()">Registrar venda</button></div></div>
-  <h2>Últimas vendas</h2><div class="mut">A receber: <b>${brl(S.vendas.filter(v=>v.pg===false).reduce((a,v)=>a+v.q*v.pv,0))}</b></div><div class="card">${[...S.vendas.filter(v=>v.st==="ag").sort((a,b)=>(a.de||"9").localeCompare(b.de||"9")),...S.vendas.filter(v=>v.st!=="ag").slice(-30).reverse()].map(v=>`<div style="border-bottom:1px solid var(--line);padding:8px 0"><b>${esc((pr(v.p)||{nome:"?"}).nome)}</b> · ${num(v.q)} un. · <b>${brl(v.q*v.pv)}</b> <span class="tag ${v.st==="ag"?"":v.pg===false?"bad":"ok"}">${v.st==="ag"?"Agendada":v.pg===false?"A receber":"Pago"}</span><div class="mut">${v.cli?esc(v.cli)+" · ":""}Encomenda ${dt(v.d)}${v.de?" · Entrega "+dt(v.de):""} · ${esc(v.fp||"—")}</div>${v.st==="ag"?`<div class="row" style="margin-top:6px"><div><label>Forma de pagamento</label><select id="fp${v.id}">${["Pix","Dinheiro","Cartão de débito","Cartão de crédito","Outro"].map(x=>`<option${x===v.fp?" selected":""}>${x}</option>`).join("")}</select></div><button class="b" onclick="concluir('${v.id}',true)">Concluir e marcar pago</button><button class="b" onclick="concluir('${v.id}',false)">Concluir, a receber</button></div>`:`<button class="l" style="color:var(--brand)" onclick="togglePago('${v.id}')">${v.pg===false?"Marcar como pago":"Marcar como não pago"}</button>`}<button class="l" onclick="delVenda('${v.id}')">${v.st==="ag"?"Cancelar encomenda":"Desfazer"}</button></div>`).join("")||'<span class="mut">Nenhuma venda.</span>'}</div>`;
+  <h2>Vendas</h2>
+  <div class="card"><div class="row"><div><label>Buscar cliente ou produto</label><input type="search" value="${esc(fv.q)}" oninput="fvSet('q',this.value)" placeholder="Maria, pão de queijo..."></div>
+  <div><label>Período</label><select onchange="fvSet('per',this.value)">${[["todas","Todos"],["hoje","Hoje"],["sem","Últimos 7 dias"],["mes","Este mês"]].map(o=>`<option value="${o[0]}" ${fv.per===o[0]?"selected":""}>${o[1]}</option>`).join("")}</select></div>
+  <div><label>Situação</label><select onchange="fvSet('st',this.value)">${[["todas","Todas"],["ag","Agendadas"],["rec","A receber"],["pago","Pagas"]].map(o=>`<option value="${o[0]}" ${fv.st===o[0]?"selected":""}>${o[1]}</option>`).join("")}</select></div></div></div>
+  <div id="vres">${vendasLista()}</div>`;
 
 V.compras=()=>{const need={};S.prod.forEach(p=>p.f.forEach(x=>need[x.i]=(need[x.i]||0)+x.q*(S.plano[p.id]||0)/p.r));
   const rows=S.insumos.filter(i=>need[i.id]>0).map(i=>({i,nd:need[i.id],buy:Math.max(0,need[i.id]-saldo(i.id))}));
@@ -254,6 +283,7 @@ V.compras=()=>{const need={};S.prod.forEach(p=>p.f.forEach(x=>need[x.i]=(need[x.
   <button class="l" onclick="delCompra('${m.id}')">Excluir</button></div></div>`}).join("")+(l.length>nCompras?`<button class="b" onclick="mais()">Ver mais compras (${l.length-nCompras})</button>`:"")})()}`};
 
 V.backup=()=>`<div class="card"><b>Backup automático</b><p class="mut">${esc(bkMsg)}</p>
+  <p class="mut">Último backup baixado: ${ultBk()?dt(ultBk())+" (há "+diasBk()+" dia(s))":"nenhum ainda"}.</p>
   <p class="mut">Depois de escolher a pasta, cada alteração grava um arquivo atual e um arquivo do dia. Funciona no Chrome ou Edge no computador. Em outros aparelhos, baixe o arquivo manualmente.</p>
   <div class="row"><button class="b" onclick="escolherPasta()">Escolher pasta de backup</button>
   ${needPerm?'<button class="b" onclick="reativar()">Reativar pasta</button>':""}
