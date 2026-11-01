@@ -40,6 +40,20 @@ th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);white-
 .tag{display:inline-block;border-radius:10px;padding:1px 9px;font-size:12px;background:var(--line)}
 .tag.bad{background:var(--bad);color:#fff}.tag.ok{background:var(--brand);color:var(--onbrand)}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;display:none;z-index:20;max-width:90%}
+.row>*{min-width:0}
+input,select{min-height:48px;font-size:16px;padding:10px 12px}
+button.b{min-height:50px;font-size:16px;padding:12px 16px}
+button.l{min-height:46px;padding:8px 12px;font-size:15px}
+nav button{min-height:44px;padding:9px 16px}
+summary{padding:8px 0}
+label{margin:2px 0 4px}
+.ing{padding:12px 0;border-bottom:1px solid var(--line)}
+.ing .f{display:flex;gap:8px;align-items:center;margin-top:4px}
+.ing .f input{flex:1;width:auto}
+.ing .f .u{color:var(--mut);white-space:nowrap}
+.ing .f .c{font-weight:600;white-space:nowrap}
+.lin{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+@media (max-width:640px){.row{grid-template-columns:1fr;gap:10px}.row>button{width:100%}main{padding:12px}.card{padding:12px}}
 </style>
 </head>
 <body>
@@ -115,6 +129,26 @@ function editCompra(id,k,v){const m=S.mov.find(a=>a.id===id);if(!m)return;
 function delCompra(id){const m=S.mov.find(a=>a.id===id);if(!m)return;
   if(saldo(m.i)-m.q<-1e-9)return toast("Não dá para excluir: parte desta compra já foi usada.");
   S.mov=S.mov.filter(a=>a.id!==id);save()}
+let nMov=20,nProd=20;
+const maisMov=()=>{nMov+=20;render()},maisProd=()=>{nProd+=20;render()};
+function editMov(id,k,v){const m=S.mov.find(a=>a.id===id);if(!m||m.ref)return;
+  if(k==="q"){v=parseFloat(String(v).replace(",","."))||0;if(v===0){toast("A quantidade não pode ser zero.");return render()}
+    if(saldo(m.i)-m.q+v<-1e-9){toast("Isso deixaria o estoque negativo.");return render()}
+    m.q=v;if(v<0&&m.t!=="c")m.t="s";if(v>0&&m.t==="s")m.t="e"}
+  else if(k==="d"){if(!v){toast("Informe a data.");return render()}m.d=v}
+  else m.o=String(v).trim()||"Ajuste";
+  save()}
+function delMov(id){const m=S.mov.find(a=>a.id===id);if(!m)return;
+  if(m.ref)return toast("Este movimento vem de uma produção. Corrija na aba Produção.");
+  if(saldo(m.i)-m.q<-1e-9)return toast("Não dá para excluir: o estoque ficaria negativo.");
+  S.mov=S.mov.filter(a=>a.id!==id);save()}
+function editProducao(id,k,v){const x=S.producoes.find(a=>a.id===id);if(!x)return;
+  if(k==="d"){if(!v){toast("Informe a data.");return render()}x.d=v;S.mov.forEach(m=>{if(m.ref===id)m.d=v});return save()}
+  v=parseFloat(String(v).replace(",","."))||0;if(v<=0){toast("A quantidade deve ser maior que zero.");return render()}
+  const r=v/x.q,ms=S.mov.filter(m=>m.ref===id);
+  if(r<1&&pronto(x.p)-(x.q-v)<-1e-9){toast("Parte desta produção já foi vendida.");return render()}
+  if(r>1){const f=ms.filter(m=>saldo(m.i)<-m.q*(r-1)-1e-9);if(f.length){toast("Falta estoque: "+f.map(m=>(ins(m.i)||{nome:"?"}).nome).join(", "));return render()}}
+  ms.forEach(m=>m.q*=r);x.q=v;save()}
 function delProd(id){if(S.producoes.some(p=>p.p===id)||S.vendas.some(v=>v.p===id))return toast("Produto com produção ou vendas não pode ser excluído.");S.prod=S.prod.filter(p=>p.id!==id);save()}
 function falta(p,q){return p.f.map(x=>({x,need:x.q*q/p.r})).filter(o=>saldo(o.x.i)<o.need-1e-9)}
 function produzir(){const p=pr(g("xp")),q=n("xq");if(!p||q<=0)return toast("Escolha o produto e a quantidade.");
@@ -163,8 +197,15 @@ V.estoque=()=>{const u=["kg","g","L","ml","un","dúzia","pacote"];
   <div><label>Quantidade</label><input id="mq" inputmode="decimal"></div>
   <div><label>Novo custo/un. (só entrada)</label><input id="mc" inputmode="decimal"></div>
   <div><label>Observação</label><input id="mo"></div><button class="b" onclick="movimento()">Registrar</button></div></div>
-  <h2>Saldo atual</h2><div class="card tw">${S.insumos.length?`<table><tr><th>Item</th><th>Saldo</th><th>Mínimo</th><th>Custo/un.</th><th></th></tr>${S.insumos.map(i=>{const s=saldo(i.id);return `<tr><td>${esc(i.nome)}</td><td><b>${num(s)} ${i.un}</b> ${s<=i.min?'<span class="tag bad">repor</span>':'<span class="tag ok">ok</span>'}</td><td>${num(i.min)}</td><td>${brl(i.custo)}</td><td><button class="l" onclick="delInsumo('${i.id}')">Excluir</button></td></tr>`}).join("")}</table>`:'<span class="mut">Cadastre o primeiro item acima.</span>'}</div>
-  <h2>Últimos movimentos</h2><div class="card tw"><table>${S.mov.slice(-15).reverse().map(m=>`<tr><td>${dt(m.d)}</td><td>${esc((ins(m.i)||{nome:"?"}).nome)}</td><td><b style="color:var(${m.q<0?"--bad":"--brand"})">${m.q>0?"+":""}${num(m.q)}</b></td><td class="mut">${esc(m.o)}</td></tr>`).join("")||'<tr><td class="mut">Sem movimentos.</td></tr>'}</table></div>`};
+  <h2>Saldo atual</h2>${S.insumos.length?S.insumos.map(i=>{const s=saldo(i.id);return `<div class="card"><div class="lin"><b>${esc(i.nome)}</b>${s<=i.min?'<span class="tag bad">repor</span>':'<span class="tag ok">ok</span>'}</div><div style="font-size:20px;font-weight:800">${num(s)} ${esc(i.un)}</div><div class="mut">Mínimo ${num(i.min)} · custo ${brl(i.custo)} por ${esc(i.un)}</div><button class="l" onclick="delInsumo('${i.id}')">Excluir item</button></div>`}).join(""):'<div class="card"><span class="mut">Cadastre o primeiro item acima.</span></div>'}
+  <h2>Movimentos de estoque</h2><div class="mut" style="margin-bottom:8px">Corrija o que for preciso nos campos. Quantidade negativa é saída.</div>${(()=>{const l=S.mov.slice().reverse();if(!l.length)return '<div class="card"><span class="mut">Sem movimentos.</span></div>';
+  return l.slice(0,nMov).map(m=>{const it=ins(m.i)||{nome:"?",un:""};
+  if(m.ref)return `<div class="card"><div class="lin"><b>${esc(it.nome)}</b><span class="mut">${dt(m.d)}</span></div><div><b style="color:var(--bad)">${num(m.q)} ${esc(it.un)}</b> <span class="mut">${esc(m.o)}</span></div><div class="mut">Para corrigir, use a aba Produção.</div></div>`;
+  return `<div class="card"><div class="lin"><b>${esc(it.nome)}</b><span class="mut">${dt(m.d)}</span></div>
+  <div class="row" style="margin-top:8px"><div><label>Data</label><input type="date" value="${m.d}" onchange="editMov('${m.id}','d',this.value)"></div>
+  <div><label>Quantidade (${esc(it.un)})</label><input inputmode="decimal" value="${m.q}" onchange="editMov('${m.id}','q',this.value)"></div>
+  <div><label>Observação</label><input value="${esc(m.o)}" onchange="editMov('${m.id}','o',this.value)"></div>
+  <button class="l" onclick="delMov('${m.id}')">Excluir movimento</button></div></div>`}).join("")+(l.length>nMov?`<button class="b" style="width:100%" onclick="maisMov()">Ver mais movimentos (${l.length-nMov})</button>`:"")})()}`};
 
 V.fichas=()=>`<div class="card"><b>Novo produto</b><div class="row"><div><label>Nome</label><input id="pn" placeholder="Pão de queijo"></div>
   <div><label>Preço de venda (R$)</label><input id="pp" inputmode="decimal"></div>
@@ -172,7 +213,7 @@ V.fichas=()=>`<div class="card"><b>Novo produto</b><div class="row"><div><label>
   <button class="b" onclick="addProd()">Cadastrar produto</button></div></div>
   ${S.prod.map(p=>{const c=custoProd(p),mg=p.preco?Math.round((p.preco-c)/p.preco*100):0;return `<details class="card" ${ab[p.id]?"open":""} ontoggle="ab['${p.id}']=this.open"><summary><b>${esc(p.nome)}</b> <span class="mut">${p.f.length} ingr. · custo ${brl(c)} · preço ${brl(p.preco)} · margem ${mg}%</span></summary><div class="row" style="margin-top:10px"><div><label>Nome</label><input value="${esc(p.nome)}" onchange="editProd('${p.id}','nome',this.value)"></div><div><label>Preço de venda (R$)</label><input inputmode="decimal" value="${p.preco}" onchange="editProd('${p.id}','preco',this.value)"></div><div><label>Rendimento (unidades)</label><input inputmode="decimal" value="${p.r}" onchange="editProd('${p.id}','r',this.value)"></div></div>
   
-  <div class="tw"><table>${p.f.map(x=>{const i=ins(x.i)||{nome:"?",un:"",custo:0};return `<tr><td><select style="min-width:150px" onchange="trocaIng('${p.id}','${x.i}',this.value)">${S.insumos.map(o=>`<option value="${o.id}" ${o.id===x.i?"selected":""}>${esc(o.nome)}</option>`).join("")}</select></td><td><input style="width:90px" inputmode="decimal" value="${x.q}" onchange="editQtd('${p.id}','${x.i}',this.value)"> ${i.un}</td><td>${brl(x.q*i.custo)}</td><td><button class="l" onclick="delFicha('${p.id}','${x.i}')">Remover</button></td></tr>`}).join("")||'<tr><td class="mut">Ficha vazia. Adicione os ingredientes.</td></tr>'}</table></div>
+  <div>${p.f.map(x=>{const i=ins(x.i)||{nome:"?",un:"",custo:0};return `<div class="ing"><select onchange="trocaIng('${p.id}','${x.i}',this.value)">${S.insumos.map(o=>`<option value="${o.id}" ${o.id===x.i?"selected":""}>${esc(o.nome)}</option>`).join("")}</select><label style="margin-top:8px">Quantidade por receita</label><div class="f"><input inputmode="decimal" value="${x.q}" onchange="editQtd('${p.id}','${x.i}',this.value)"><span class="u">${esc(i.un)}</span><span class="c">${brl(x.q*i.custo)}</span></div><button class="l" onclick="delFicha('${p.id}','${x.i}')">Remover ingrediente</button></div>`}).join("")||'<div class="mut" style="padding:8px 0">Ficha vazia. Adicione os ingredientes.</div>'}</div>
   <div class="row"><div><label>Ingrediente</label><select id="fi${p.id}">${opts(S.insumos,i=>i.nome+" ("+i.un+")")}</select></div>
   <div><label>Qtd. por receita</label><input id="fq${p.id}" inputmode="decimal"></div><button class="b" onclick="addFicha('${p.id}')">Adicionar</button></div>
   <button class="l" onclick="delProd('${p.id}')">Excluir produto</button></details>`}).join("")}`;
@@ -180,7 +221,11 @@ V.fichas=()=>`<div class="card"><b>Novo produto</b><div class="row"><div><label>
 V.producao=()=>`<div class="card"><b>Registrar produção</b><div class="mut">Os ingredientes saem do estoque e os produtos entram como prontos.</div>
   <div class="row"><div><label>Produto</label><select id="xp">${opts(S.prod,p=>p.nome)}</select></div>
   <div><label>Unidades produzidas</label><input id="xq" inputmode="decimal"></div><button class="b" onclick="produzir()">Registrar produção</button></div></div>
-  <h2>Histórico</h2><div class="card tw"><table>${S.producoes.slice(-20).reverse().map(x=>`<tr><td>${dt(x.d)}</td><td>${esc((pr(x.p)||{nome:"?"}).nome)}</td><td><b>${num(x.q)} un.</b></td><td><button class="l" onclick="delProducao('${x.id}')">Desfazer</button></td></tr>`).join("")||'<tr><td class="mut">Nenhuma produção.</td></tr>'}</table></div>`;
+  <h2>Histórico</h2><div class="mut" style="margin-bottom:8px">Corrija data ou unidades. Os ingredientes do estoque são ajustados junto.</div>${(()=>{const l=S.producoes.slice().reverse();if(!l.length)return '<div class="card"><span class="mut">Nenhuma produção.</span></div>';
+  return l.slice(0,nProd).map(x=>`<div class="card"><div class="lin"><b>${esc((pr(x.p)||{nome:"?"}).nome)}</b><span class="mut">${dt(x.d)}</span></div>
+  <div class="row" style="margin-top:8px"><div><label>Data</label><input type="date" value="${x.d}" onchange="editProducao('${x.id}','d',this.value)"></div>
+  <div><label>Unidades produzidas</label><input inputmode="decimal" value="${x.q}" onchange="editProducao('${x.id}','q',this.value)"></div>
+  <button class="l" onclick="delProducao('${x.id}')">Desfazer produção</button></div></div>`).join("")+(l.length>nProd?`<button class="b" style="width:100%" onclick="maisProd()">Ver mais produções (${l.length-nProd})</button>`:"")})()}`;
 
 V.vendas=()=>`<div class="card"><b>Registrar venda</b><div class="mut">Venda agora abate o estoque na hora. Encomenda agendada abate só quando você concluir a entrega.</div>
   <div class="row"><div><label>Tipo</label><select id="vt" onchange="if(this.value==='ag'){$('vf').value='Outro';$('vg').value='n'}"><option value="ok">Vender agora</option><option value="ag">Agendar encomenda</option></select></div><div><label>Produto</label><select id="vp" onchange="preencher()">${S.prod.map(p=>`<option value="${p.id}">${esc(p.nome)} (${num(pronto(p.id))} prontos)</option>`).join("")}</select></div>
