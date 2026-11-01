@@ -250,7 +250,17 @@ const fichaHTML=id=>{const p=pr(id);if(!p)return null;
   <p class="mut">Preço de venda ${brl(p.preco)} · lucro por unidade ${brl(p.preco-c)} · margem ${mg}%</p>
   <div class="card"><b>Adicionar ingrediente</b><div class="row" style="margin-top:8px"><div><label>Ingrediente</label><select id="fi${p.id}">${opts(S.insumos,i=>i.nome+" ("+i.un+")")}</select></div>
   <div><label>Quantidade por receita</label><input id="fq${p.id}" inputmode="decimal"></div><button class="b" onclick="addFicha('${p.id}')">Adicionar</button></div></div>
-  <div class="acoes"><button class="l" onclick="delProd('${p.id}')">Excluir produto</button><button class="b" onclick="fechar()">Concluir</button></div>`};
+  <div class="acoes"><button class="s" onclick="abrirCopia('${p.id}')">Copiar ficha</button><button class="b" onclick="fechar()">Concluir</button></div>
+  <button class="l" style="width:100%" onclick="delProd('${p.id}')">Excluir produto</button>`};
+const nomeKey=t=>String(t).normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLowerCase();
+function abrirCopia(id){const p=pr(id);if(!p)return;abrir("Copiar ficha",()=>`<div class="card"><div class="mut">Copiando a ficha de</div><b>${esc(p.nome)}</b><div class="mut" style="margin-top:6px">${p.f.length} ingr. · rendimento ${num(p.r)} · preço ${brl(p.preco)}</div></div>
+  <div class="card"><div class="row"><div><label>Nome do novo produto (diferente dos existentes)</label><input id="cn" placeholder="Ex.: ${esc(p.nome)} integral" autocomplete="off"></div>
+  <button class="b" onclick="copiarFicha('${id}')">Criar cópia e editar</button></div></div>
+  <p class="mut">A cópia vem com os mesmos ingredientes, quantidades, rendimento e preço. Depois é só alterar o que for diferente.</p>`)}
+function copiarFicha(id){const p=pr(id);if(!p)return;const nome=g("cn").trim();
+  if(!nome)return toast("Informe o nome da nova ficha.");
+  if(S.prod.some(x=>nomeKey(x.nome)===nomeKey(nome)))return toast("Já existe um produto com esse nome. Use um nome diferente.");
+  const nid=uid();S.prod.push({id:nid,nome,preco:p.preco,r:p.r,f:p.f.map(x=>({i:x.i,q:x.q}))});save();abrirFicha(nid)}
 function abrirFicha(id){const p=pr(id);if(!p)return;abrir(p.nome,()=>fichaHTML(id),true)}
 function abrirPlano(){if(!S.prod.length)return toast("Cadastre produtos primeiro.");
   abrir("Previsão de produção",()=>`<div class="card"><div class="mut" style="margin-bottom:8px">Quantas unidades pretende produzir?</div><div class="row">${S.prod.map(p=>`<div><label>${esc(p.nome)}</label><input inputmode="decimal" value="${S.plano[p.id]||""}" onchange="setPlano('${p.id}',this.value)"></div>`).join("")}</div></div>`,true)}
@@ -307,7 +317,7 @@ V.estoque=()=>{const l=S.mov.slice().reverse();
   <h2>Movimentos de estoque</h2>${l.length?l.slice(0,nMov).map(m=>{const it=ins(m.i)||{nome:"?",un:""};return `<div class="card"><div class="lin"><b>${esc(it.nome)}</b><span class="mut">${dt(m.d)}</span></div><div class="lin" style="margin-top:6px"><span><b style="color:var(${m.q<0?"--bad":"--brand"})">${m.q>0?"+":""}${num(m.q)} ${esc(it.un)}</b> <span class="mut">${esc(m.o)}</span></span>${m.ref?'<span class="mut">Edite na aba Produção</span>':`<button class="s" onclick="abrirMovEd('${m.id}')">Editar</button>`}</div></div>`}).join("")+(l.length>nMov?`<button class="b" style="width:100%" onclick="maisMov()">Ver mais movimentos (${l.length-nMov})</button>`:""):'<div class="card"><span class="mut">Sem movimentos.</span></div>'}`};
 
 V.fichas=()=>`<div class="acoes"><button class="b" onclick="abrirNovoProd()">＋ Novo produto</button></div>
-  <h2>Produtos</h2>${S.prod.length?S.prod.map(p=>{const c=custoProd(p),mg=p.preco?Math.round((p.preco-c)/p.preco*100):0;return `<div class="card"><div class="lin"><b>${esc(p.nome)}</b><span class="tag ${mg<0?"bad":"ok"}">margem ${mg}%</span></div><div class="mut">${p.f.length} ingr. · custo ${brl(c)} · preço ${brl(p.preco)}</div><button class="s" style="width:100%;margin-top:10px" onclick="abrirFicha('${p.id}')">Abrir ficha técnica</button></div>`}).join(""):'<div class="card"><span class="mut">Toque em Novo produto para cadastrar o primeiro.</span></div>'}`;
+  <h2>Produtos</h2>${S.prod.length?S.prod.map(p=>{const c=custoProd(p),mg=p.preco?Math.round((p.preco-c)/p.preco*100):0;return `<div class="card"><div class="lin"><b>${esc(p.nome)}</b><span class="tag ${mg<0?"bad":"ok"}">margem ${mg}%</span></div><div class="mut">${p.f.length} ingr. · custo ${brl(c)} · preço ${brl(p.preco)}</div><div class="acoes" style="margin:10px 0 0"><button class="s" onclick="abrirFicha('${p.id}')">Abrir ficha técnica</button><button class="s" onclick="abrirCopia('${p.id}')">Copiar ficha</button></div></div>`}).join(""):'<div class="card"><span class="mut">Toque em Novo produto para cadastrar o primeiro.</span></div>'}`;
 
 V.producao=()=>{const l=S.producoes.slice().reverse();
   return `<div class="acoes"><button class="b" onclick="abrirProducao()">＋ Registrar produção</button></div>
