@@ -39,7 +39,7 @@ button.l{font:inherit;background:none;border:0;color:var(--bad);cursor:pointer;p
 th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--mut);font-weight:400}
 .tag{display:inline-block;border-radius:10px;padding:1px 9px;font-size:12px;background:var(--line)}
 .tag.bad{background:var(--bad);color:#fff}.tag.ok{background:var(--brand);color:var(--onbrand)}
-#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;display:none;z-index:20;max-width:90%}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;display:none;z-index:40;max-width:90%}
 .row>*{min-width:0}
 input,select{min-height:48px;font-size:16px;padding:10px 12px}
 button.b{min-height:50px;font-size:16px;padding:12px 16px}
@@ -54,12 +54,23 @@ label{margin:2px 0 4px}
 .ing .f .c{font-weight:600;white-space:nowrap}
 .lin{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 @media (max-width:640px){.row{grid-template-columns:1fr;gap:10px}.row>button{width:100%}main{padding:12px}.card{padding:12px}}
+button.s{font:inherit;font-weight:600;background:none;border:1px solid var(--brand);color:var(--brand);border-radius:8px;padding:8px 14px;min-height:46px;cursor:pointer}
+.acoes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.acoes>button:only-child{grid-column:1/-1}
+#sheet{position:fixed;inset:0;z-index:30;background:var(--bg);display:none;overflow-y:auto;overscroll-behavior:contain;padding-bottom:env(safe-area-inset-bottom,0px)}
+.sh-h{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px;background:var(--bg);border-bottom:1px solid var(--line)}
+.sh-h b{font-size:18px}
+.sh-h button{font:inherit;min-height:46px;padding:8px 14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;cursor:pointer}
+#sheet-b{max-width:640px;margin:0 auto;padding:14px 14px 48px}
+#sheet .row{grid-template-columns:1fr}
+#sheet .row>button{width:100%}
 </style>
 </head>
 <body>
 <header><h1>Delícias Caseiras da Naty</h1><nav id="nav"></nav></header>
 <main id="v"></main>
 <div id="toast" role="status"></div>
+<div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-t"><div class="sh-h"><button onclick="fechar()">‹ Voltar</button><b id="sheet-t"></b></div><div id="sheet-b"></div></div>
 <script>
 const K="meuforno.v1",EMPTY=()=>({insumos:[],mov:[],prod:[],producoes:[],vendas:[],plano:{}});
 let S=EMPTY();try{const r=localStorage.getItem(K);if(r)S=Object.assign(EMPTY(),JSON.parse(r))}catch(e){}
@@ -77,7 +88,7 @@ const pronto=id=>S.producoes.filter(p=>p.p===id).reduce((a,p)=>a+p.q,0)-S.vendas
 const custoProd=p=>p.f.reduce((a,x)=>a+x.q*((ins(x.i)||{}).custo||0),0)/(p.r||1);
 const opts=(l,f)=>l.map(x=>`<option value="${x.id}">${esc(f(x))}</option>`).join("");
 function toast(t){const e=$("toast");e.textContent=t;e.style.display="block";clearTimeout(e._t);e._t=setTimeout(()=>e.style.display="none",3200)}
-function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}clearTimeout(timer);timer=setTimeout(fazerBackup,500);render()}
+function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}clearTimeout(timer);timer=setTimeout(fazerBackup,500);render();if(sheet&&!sheet.keep)fechar()}
 
 /* ---------- Backup ---------- */
 const idb=()=>new Promise((ok,no)=>{const r=indexedDB.open("meuforno",1);r.onupgradeneeded=()=>r.result.createObjectStore("h");r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
@@ -92,12 +103,12 @@ async function reativar(){try{if(await dir.requestPermission({mode:"readwrite"})
 async function fazerBackup(){
   if(!dir)return;
   try{
-    if(await dir.queryPermission({mode:"readwrite"})!=="granted"){needPerm=true;bkMsg="A permissão da pasta expirou. Toque em “Reativar pasta”.";return render()}
+    if(await dir.queryPermission({mode:"readwrite"})!=="granted"){needPerm=true;bkMsg="A permissão da pasta expirou. Toque em “Reativar pasta”.";return rendBk()}
     const js=JSON.stringify(S,null,1);
     for(const nm of ["backup-meu-forno-atual.json","backup-meu-forno-"+hoje()+".json"]){const f=await dir.getFileHandle(nm,{create:true}),w=await f.createWritable();await w.write(js);await w.close()}
     marcaBk();bkMsg="Último backup automático: "+new Date().toLocaleString("pt-BR")+" na pasta “"+dir.name+"”."
   }catch(e){bkMsg="Falha no backup: "+e.message}
-  render()}
+  rendBk()}
 function baixar(){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:"application/json"}));a.download="backup-meu-forno-"+hoje()+".json";a.click();marcaBk();toast("Backup baixado.");render()}
 function restaurar(ev){const f=ev.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{S=Object.assign(EMPTY(),JSON.parse(r.result));save();toast("Dados restaurados.")}catch(e){toast("Arquivo inválido.")}};r.readAsText(f)}
 
@@ -108,7 +119,7 @@ function movimento(){const i=g("mi");if(!i)return toast("Cadastre um item primei
   if(t==="e"&&n("mc")>0)ins(i).custo=n("mc");
   S.mov.push({id:uid(),i,q,d:hoje(),o:g("mo")||({e:"Entrada",s:"Saída",c:"Contagem"})[t],t,c:t==="e"&&n("mc")>0?n("mc"):undefined});save()}
 function delInsumo(id){if(S.mov.some(m=>m.i===id)||S.prod.some(p=>p.f.some(x=>x.i===id)))return toast("Item com movimentos ou usado em ficha não pode ser excluído.");S.insumos=S.insumos.filter(i=>i.id!==id);save()}
-function addProd(){const nome=g("pn").trim();if(!nome)return toast("Informe o nome do produto.");const id=uid();ab[id]=true;S.prod.push({id,nome,preco:n("pp"),r:n("pr")||1,f:[]});save()}
+function addProd(){const nome=g("pn").trim();if(!nome)return toast("Informe o nome do produto.");const id=uid();ab[id]=true;S.prod.push({id,nome,preco:n("pp"),r:n("pr")||1,f:[]});save();abrirFicha(id)}
 function addFicha(p){const i=g("fi"+p),q=n("fq"+p);if(!i||q<=0)return toast("Escolha o item e a quantidade.");const pd=pr(p),x=pd.f.find(a=>a.i===i);x?x.q+=q:pd.f.push({i,q});save()}
 function delFicha(p,i){const pd=pr(p);pd.f=pd.f.filter(x=>x.i!==i);save()}
 function editProd(id,k,v){const p=pr(id);if(k==="nome"){v=v.trim();if(!v){toast("O nome não pode ficar vazio.");return render()}}else{v=parseFloat(String(v).replace(",","."))||0;if(k==="r"&&v<=0){toast("O rendimento deve ser maior que zero.");return render()}}p[k]=v;save()}
@@ -118,37 +129,12 @@ let nCompras=30;
 const mais=()=>{nCompras+=30;render()};
 function trocaIng(p,a,b){if(a===b)return;const pd=pr(p),cur=pd.f.find(x=>x.i===a),ex=pd.f.find(x=>x.i===b);if(!cur)return;
   if(ex){ex.q+=cur.q;pd.f=pd.f.filter(x=>x!==cur);toast("Esse ingrediente já estava na ficha: quantidades somadas.")}else cur.i=b;save()}
-function editCompra(id,k,v){const m=S.mov.find(a=>a.id===id);if(!m)return;
-  if(k==="q"){v=parseFloat(String(v).replace(",","."))||0;if(v<=0){toast("A quantidade deve ser maior que zero.");return render()}
-    if(saldo(m.i)-m.q+v<-1e-9){toast("Isso deixaria o estoque negativo: parte desta compra já foi usada.");return render()}m.q=v}
-  else if(k==="c"){v=parseFloat(String(v).replace(",","."))||0;m.c=v>0?v:undefined;
-    const ult=S.mov.filter(a=>a.i===m.i&&compra(a)).pop();if(ult===m&&m.c&&ins(m.i))ins(m.i).custo=m.c}
-  else if(k==="d"){if(!v){toast("Informe a data.");return render()}m.d=v}
-  else m.o=String(v).trim()||"Entrada";
-  save()}
-function delCompra(id){const m=S.mov.find(a=>a.id===id);if(!m)return;
-  if(saldo(m.i)-m.q<-1e-9)return toast("Não dá para excluir: parte desta compra já foi usada.");
-  S.mov=S.mov.filter(a=>a.id!==id);save()}
 let nMov=20,nProd=20;
 const maisMov=()=>{nMov+=20;render()},maisProd=()=>{nProd+=20;render()};
-function editMov(id,k,v){const m=S.mov.find(a=>a.id===id);if(!m||m.ref)return;
-  if(k==="q"){v=parseFloat(String(v).replace(",","."))||0;if(v===0){toast("A quantidade não pode ser zero.");return render()}
-    if(saldo(m.i)-m.q+v<-1e-9){toast("Isso deixaria o estoque negativo.");return render()}
-    m.q=v;if(v<0&&m.t!=="c")m.t="s";if(v>0&&m.t==="s")m.t="e"}
-  else if(k==="d"){if(!v){toast("Informe a data.");return render()}m.d=v}
-  else m.o=String(v).trim()||"Ajuste";
-  save()}
 function delMov(id){const m=S.mov.find(a=>a.id===id);if(!m)return;
   if(m.ref)return toast("Este movimento vem de uma produção. Corrija na aba Produção.");
   if(saldo(m.i)-m.q<-1e-9)return toast("Não dá para excluir: o estoque ficaria negativo.");
   S.mov=S.mov.filter(a=>a.id!==id);save()}
-function editProducao(id,k,v){const x=S.producoes.find(a=>a.id===id);if(!x)return;
-  if(k==="d"){if(!v){toast("Informe a data.");return render()}x.d=v;S.mov.forEach(m=>{if(m.ref===id)m.d=v});return save()}
-  v=parseFloat(String(v).replace(",","."))||0;if(v<=0){toast("A quantidade deve ser maior que zero.");return render()}
-  const r=v/x.q,ms=S.mov.filter(m=>m.ref===id);
-  if(r<1&&pronto(x.p)-(x.q-v)<-1e-9){toast("Parte desta produção já foi vendida.");return render()}
-  if(r>1){const f=ms.filter(m=>saldo(m.i)<-m.q*(r-1)-1e-9);if(f.length){toast("Falta estoque: "+f.map(m=>(ins(m.i)||{nome:"?"}).nome).join(", "));return render()}}
-  ms.forEach(m=>m.q*=r);x.q=v;save()}
 const BK="meuforno.bk";
 const ultBk=()=>{try{return localStorage.getItem(BK)||""}catch(e){return ""}};
 const marcaBk=()=>{try{localStorage.setItem(BK,hoje())}catch(e){}};
@@ -174,6 +160,92 @@ function vendasLista(){const h=hoje(),sem=new Date(Date.now()-new Date().getTime
     if(fv.st==="ag")return v.st==="ag";if(fv.st==="rec")return v.st!=="ag"&&v.pg===false;if(fv.st==="pago")return v.st!=="ag"&&v.pg!==false;return true};
   const l=S.vendas.filter(ok),ag=l.filter(v=>v.st==="ag").sort((a,b)=>(a.de||"9").localeCompare(b.de||"9")),cc=l.filter(v=>v.st!=="ag").reverse(),tot=cc.reduce((a,v)=>a+v.q*v.pv,0);
   return `<div class="mut" style="margin-bottom:8px">A receber (geral): <b>${brl(S.vendas.filter(v=>v.pg===false).reduce((a,v)=>a+v.q*v.pv,0))}</b><br>Neste filtro: ${cc.length} concluída(s), <b>${brl(tot)}</b>${ag.length?" · "+ag.length+" agendada(s), fora do total":""}</div><div class="card">${[...ag,...cc.slice(0,nVend)].map(vendaCard).join("")||'<span class="mut">Nenhuma venda encontrada.</span>'}</div>${cc.length>nVend?`<button class="b" style="width:100%" onclick="maisVend()">Ver mais vendas (${cc.length-nVend})</button>`:""}`}
+let sheet=null,sheetOn=false,skipPop=0;
+const UN=["kg","g","L","ml","un","dúzia","pacote"],fx=v=>Math.round(v*1e6)/1e6;
+const rendBk=()=>{if(!sheet)render()};
+function abrir(t,fn,keep){sheet={fn,keep:!!keep};$("sheet-t").textContent=t;const h=fn();$("sheet-b").innerHTML=h===null?"":h;$("sheet").style.display="block";$("sheet").scrollTop=0;document.body.style.overflow="hidden";if(!sheetOn){history.pushState({sh:1},"");sheetOn=true}}
+function hideSheet(){sheetOn=false;sheet=null;$("sheet").style.display="none";$("sheet-b").innerHTML="";document.body.style.overflow=""}
+function fechar(){if(!sheetOn)return;hideSheet();skipPop++;history.back()}
+addEventListener("popstate",()=>{if(skipPop>0){skipPop--;return}if(sheetOn)hideSheet()});
+const atalhos=()=>`<div class="acoes"><button class="b" onclick="abrirVenda()">＋ Nova venda</button><button class="b" onclick="abrirProducao()">＋ Produção</button><button class="s" onclick="abrirMov(null,'e')">＋ Compra</button><button class="s" onclick="abrirMov()">Movimento</button></div>`;
+
+function abrirNovoItem(){abrir("Novo item",()=>`<div class="card"><div class="row"><div><label>Nome</label><input id="in" placeholder="Farinha de trigo" autocomplete="off"></div>
+  <div><label>Unidade</label><select id="iu">${UN.map(x=>`<option>${x}</option>`).join("")}</select></div>
+  <div><label>Estoque mínimo</label><input id="im" inputmode="decimal" value="0"></div>
+  <div><label>Custo por unidade (R$)</label><input id="ic" inputmode="decimal" value="0"></div>
+  <button class="b" onclick="addInsumo()">Cadastrar item</button></div></div>`)}
+function msal(){const i=ins(g("mi"));$("msal").textContent=i?"Saldo atual: "+num(saldo(i.id))+" "+i.un:""}
+function abrirMov(i,t){if(!S.insumos.length)return toast("Cadastre um item primeiro.");t=t||"e";
+  abrir(t==="e"&&!i?"Registrar compra":"Movimento de estoque",()=>{const cur=ins(i)||S.insumos[0];return `<div class="card"><div class="row"><div><label>Item</label><select id="mi" onchange="msal()">${S.insumos.map(x=>`<option value="${x.id}" ${x.id===cur.id?"selected":""}>${esc(x.nome)} (${esc(x.un)})</option>`).join("")}</select><div class="mut" id="msal" style="margin-top:4px">Saldo atual: ${num(saldo(cur.id))} ${esc(cur.un)}</div></div>
+  <div><label>Tipo</label><select id="mt"><option value="e" ${t==="e"?"selected":""}>Entrada (compra)</option><option value="s" ${t==="s"?"selected":""}>Saída (perda, uso)</option><option value="c" ${t==="c"?"selected":""}>Contagem (acertar saldo)</option></select></div>
+  <div><label>Quantidade</label><input id="mq" inputmode="decimal"></div>
+  <div><label>Novo custo por unidade (só entrada)</label><input id="mc" inputmode="decimal"></div>
+  <div><label>Observação</label><input id="mo"></div>
+  <button class="b" onclick="movimento()">Registrar</button></div></div>`})}
+function abrirItemEd(id){const i0=ins(id);if(!i0)return;abrir("Editar item",()=>{const i=ins(id),us=UN.includes(i.un)?UN:[...UN,i.un];return `<div class="card"><div class="row"><div><label>Nome</label><input id="ien" value="${esc(i.nome)}"></div>
+  <div><label>Unidade</label><select id="ieu">${us.map(x=>`<option ${x===i.un?"selected":""}>${esc(x)}</option>`).join("")}</select><div class="mut" style="margin-top:4px">Mudar a unidade não converte as quantidades já lançadas.</div></div>
+  <div><label>Estoque mínimo</label><input id="iem" inputmode="decimal" value="${fx(i.min)}"></div>
+  <div><label>Custo por unidade (R$)</label><input id="iec" inputmode="decimal" value="${fx(i.custo)}"></div>
+  <button class="b" onclick="salvarItem('${id}')">Salvar alterações</button>
+  <button class="l" onclick="delInsumo('${id}')">Excluir item</button></div></div>`})}
+function salvarItem(id){const i=ins(id);if(!i)return;const nome=g("ien").trim();if(!nome)return toast("Informe o nome do item.");
+  const mn=n("iem"),c=n("iec");if(mn<0||c<0)return toast("Mínimo e custo não podem ser negativos.");i.nome=nome;i.un=g("ieu");i.min=mn;i.custo=c;save()}
+function abrirMovEd(id){const m0=S.mov.find(a=>a.id===id);if(!m0||m0.ref)return;
+  abrir(compra(m0)?"Editar compra":"Editar movimento",()=>{const m=S.mov.find(a=>a.id===id);if(!m)return null;const it=ins(m.i)||{nome:"?",un:""},cp=compra(m);
+  return `<div class="card"><b>${esc(it.nome)}</b><div class="mut">Saldo atual: ${num(saldo(m.i))} ${esc(it.un)}</div></div>
+  <div class="card"><div class="row"><div><label>Data</label><input id="ed" type="date" value="${m.d}"></div>
+  <div><label>Quantidade (${esc(it.un)})${cp?"":" · negativo é saída"}</label><input id="eq" inputmode="decimal" value="${fx(m.q)}"></div>
+  ${cp?`<div><label>Custo por ${esc(it.un)} (R$)</label><input id="ec" inputmode="decimal" value="${m.c||""}"></div>`:""}
+  <div><label>Observação</label><input id="eo" value="${esc(m.o)}"></div>
+  <button class="b" onclick="salvarMov('${m.id}')">Salvar alterações</button>
+  <button class="l" onclick="delMov('${m.id}')">Excluir</button></div></div>`})}
+function salvarMov(id){const m=S.mov.find(a=>a.id===id);if(!m||m.ref)return;const d=g("ed"),q=n("eq"),o=g("eo").trim()||"Ajuste";
+  if(!d)return toast("Informe a data.");if(q===0)return toast("A quantidade não pode ser zero.");
+  if(saldo(m.i)-m.q+q<-1e-9)return toast("Isso deixaria o estoque negativo.");
+  const cp=compra(m);m.d=d;m.q=q;m.o=o;if(q<0&&m.t!=="c")m.t="s";if(q>0&&m.t==="s")m.t="e";
+  if(cp&&$("ec")){const c=n("ec");m.c=c>0?c:undefined;const ult=S.mov.filter(a=>a.i===m.i&&compra(a)).pop();if(ult===m&&m.c&&ins(m.i))ins(m.i).custo=m.c}
+  save()}
+function abrirProducao(){if(!S.prod.length)return toast("Cadastre produtos na aba Fichas.");
+  abrir("Registrar produção",()=>`<div class="card"><div class="mut" style="margin-bottom:8px">Os ingredientes saem do estoque e os produtos entram como prontos.</div><div class="row"><div><label>Produto</label><select id="xp">${opts(S.prod,p=>p.nome)}</select></div>
+  <div><label>Unidades produzidas</label><input id="xq" inputmode="decimal"></div><button class="b" onclick="produzir()">Registrar produção</button></div></div>`)}
+function abrirProdEd(id){if(!S.producoes.find(a=>a.id===id))return;
+  abrir("Editar produção",()=>{const x=S.producoes.find(a=>a.id===id);if(!x)return null;return `<div class="card"><b>${esc((pr(x.p)||{nome:"?"}).nome)}</b><div class="mut">Os ingredientes do estoque são ajustados junto.</div></div>
+  <div class="card"><div class="row"><div><label>Data</label><input id="pd" type="date" value="${x.d}"></div>
+  <div><label>Unidades produzidas</label><input id="pq" inputmode="decimal" value="${fx(x.q)}"></div>
+  <button class="b" onclick="salvarProducao('${id}')">Salvar alterações</button>
+  <button class="l" onclick="delProducao('${id}')">Desfazer produção</button></div></div>`})}
+function salvarProducao(id){const x=S.producoes.find(a=>a.id===id);if(!x)return;const d=g("pd"),v=n("pq");
+  if(!d)return toast("Informe a data.");if(v<=0)return toast("A quantidade deve ser maior que zero.");
+  const r=v/x.q,ms=S.mov.filter(m=>m.ref===id);
+  if(r<1&&pronto(x.p)-(x.q-v)<-1e-9)return toast("Parte desta produção já foi vendida.");
+  if(r>1){const f=ms.filter(m=>saldo(m.i)<-m.q*(r-1)-1e-9);if(f.length)return toast("Falta estoque: "+f.map(m=>(ins(m.i)||{nome:"?"}).nome).join(", "))}
+  ms.forEach(m=>{m.q*=r;m.d=d});x.q=v;x.d=d;save()}
+function abrirNovoProd(){abrir("Novo produto",()=>`<div class="card"><div class="row"><div><label>Nome</label><input id="pn" placeholder="Pão de queijo" autocomplete="off"></div>
+  <div><label>Preço de venda (R$)</label><input id="pp" inputmode="decimal"></div>
+  <div><label>Rendimento da receita (unidades)</label><input id="pr" inputmode="decimal" value="1"></div>
+  <button class="b" onclick="addProd()">Cadastrar produto</button></div></div>`)}
+const fichaHTML=id=>{const p=pr(id);if(!p)return null;const c=custoProd(p),mg=p.preco?Math.round((p.preco-c)/p.preco*100):0;
+  return `<div class="card"><div class="mut">${p.f.length} ingr. · custo ${brl(c)} por unidade · margem ${mg}%</div></div>
+  <div class="card"><b>Dados do produto</b><div class="row" style="margin-top:8px"><div><label>Nome</label><input value="${esc(p.nome)}" onchange="editProd('${p.id}','nome',this.value)"></div>
+  <div><label>Preço de venda (R$)</label><input inputmode="decimal" value="${p.preco}" onchange="editProd('${p.id}','preco',this.value)"></div>
+  <div><label>Rendimento (unidades)</label><input inputmode="decimal" value="${p.r}" onchange="editProd('${p.id}','r',this.value)"></div></div></div>
+  <div class="card"><b>Ingredientes por receita</b>${p.f.map(x=>{const i=ins(x.i)||{nome:"?",un:"",custo:0};return `<div class="ing"><select onchange="trocaIng('${p.id}','${x.i}',this.value)">${S.insumos.map(o=>`<option value="${o.id}" ${o.id===x.i?"selected":""}>${esc(o.nome)}</option>`).join("")}</select><label style="margin-top:8px">Quantidade por receita</label><div class="f"><input inputmode="decimal" value="${x.q}" onchange="editQtd('${p.id}','${x.i}',this.value)"><span class="u">${esc(i.un)}</span><span class="c">${brl(x.q*i.custo)}</span></div><button class="l" onclick="delFicha('${p.id}','${x.i}')">Remover ingrediente</button></div>`}).join("")||'<div class="mut" style="padding:8px 0">Ficha vazia. Adicione os ingredientes abaixo.</div>'}</div>
+  <div class="card"><b>Adicionar ingrediente</b><div class="row" style="margin-top:8px"><div><label>Ingrediente</label><select id="fi${p.id}">${opts(S.insumos,i=>i.nome+" ("+i.un+")")}</select></div>
+  <div><label>Quantidade por receita</label><input id="fq${p.id}" inputmode="decimal"></div><button class="b" onclick="addFicha('${p.id}')">Adicionar</button></div></div>
+  <button class="l" onclick="delProd('${p.id}')">Excluir produto</button>`};
+function abrirFicha(id){const p=pr(id);if(!p)return;abrir(p.nome,()=>fichaHTML(id),true)}
+function abrirPlano(){if(!S.prod.length)return toast("Cadastre produtos primeiro.");
+  abrir("Previsão de produção",()=>`<div class="card"><div class="mut" style="margin-bottom:8px">Quantas unidades pretende produzir?</div><div class="row">${S.prod.map(p=>`<div><label>${esc(p.nome)}</label><input inputmode="decimal" value="${S.plano[p.id]||""}" onchange="setPlano('${p.id}',this.value)"></div>`).join("")}</div></div>`,true)}
+function abrirVenda(){if(!S.prod.length)return toast("Cadastre produtos na aba Fichas.");abrir("Registrar venda",()=>`<div class="card"><b>Registrar venda</b><div class="mut">Venda agora abate o estoque na hora. Encomenda agendada abate só quando você concluir a entrega.</div>
+  <div class="row"><div><label>Tipo</label><select id="vt" onchange="if(this.value==='ag'){$('vf').value='Outro';$('vg').value='n'}"><option value="ok">Vender agora</option><option value="ag">Agendar encomenda</option></select></div><div><label>Produto</label><select id="vp" onchange="preencher()">${S.prod.map(p=>`<option value="${p.id}">${esc(p.nome)} (${num(pronto(p.id))} prontos)</option>`).join("")}</select></div>
+  <div><label>Quantidade</label><input id="vq" inputmode="decimal" value="1"></div>
+  <div><label>Preço unitário (R$)</label><input id="vv" inputmode="decimal" value="${S.prod[0]?S.prod[0].preco:0}"></div>
+  <div><label>Nome do cliente</label><input id="vc" placeholder="Maria"></div>
+  <div><label>Data da encomenda</label><input id="vd" type="date" value="${hoje()}"></div>
+  <div><label>Data da entrega</label><input id="ve" type="date" value="${hoje()}"></div>
+  <div><label>Forma de pagamento</label><select id="vf"><option>Pix</option><option>Dinheiro</option><option>Cartão de débito</option><option>Cartão de crédito</option><option>Outro</option></select></div>
+  <div><label>Já pagou?</label><select id="vg"><option value="s">Sim</option><option value="n">Não</option></select></div>
+  <button class="b" onclick="vender()">Registrar venda</button></div></div>`)}
 function delProd(id){if(S.producoes.some(p=>p.p===id)||S.vendas.some(v=>v.p===id))return toast("Produto com produção ou vendas não pode ser excluído.");S.prod=S.prod.filter(p=>p.id!==id);save()}
 function falta(p,q){return p.f.map(x=>({x,need:x.q*q/p.r})).filter(o=>saldo(o.x.i)<o.need-1e-9)}
 function produzir(){const p=pr(g("xp")),q=n("xq");if(!p||q<=0)return toast("Escolha o produto e a quantidade.");
@@ -202,7 +274,7 @@ V.painel=()=>{const h=hoje(),m=h.slice(0,7),vs=f=>S.vendas.filter(v=>v.st!=="ag"
   const d=vs(v=>v.d===h),ms=vs(v=>v.d.slice(0,7)===m),fat=t(ms,v=>v.q*v.pv),luc=fat-t(ms,v=>v.q*v.c);
   const baixos=S.insumos.filter(i=>saldo(i.id)<=i.min);
   const top=S.prod.map(p=>({p,q:t(S.vendas.filter(v=>v.p===p.id&&v.st!=="ag"),v=>v.q)})).filter(o=>o.q>0).sort((a,b)=>b.q-a.q).slice(0,5);
-  return `${avisoBk()}${lembretes()}<div class="grid">
+  return `${avisoBk()}${atalhos()}${lembretes()}<div class="grid">
   <div class="card stat"><b>${brl(t(d,v=>v.q*v.pv))}</b><span>Vendas de hoje</span></div>
   <div class="card stat"><b>${brl(fat)}</b><span>Vendas do mês</span></div>
   <div class="card stat"><b>${brl(luc)}</b><span>Lucro estimado no mês</span></div>
@@ -211,57 +283,19 @@ V.painel=()=>{const h=hoje(),m=h.slice(0,7),vs=f=>S.vendas.filter(v=>v.st!=="ag"
   <h2>Produtos prontos para vender</h2><div class="card">${S.prod.length?S.prod.map(p=>`<div>${esc(p.nome)}: <b>${num(pronto(p.id))} un.</b></div>`).join(""):'<span class="mut">Cadastre produtos na aba Fichas.</span>'}</div>
   <h2>Mais vendidos</h2><div class="card">${top.length?top.map(o=>`<div>${esc(o.p.nome)}: <b>${num(o.q)} un.</b></div>`).join(""):'<span class="mut">Sem vendas registradas.</span>'}</div>`};
 
-V.estoque=()=>{const u=["kg","g","L","ml","un","dúzia","pacote"];
-  return `<div class="card"><b>Novo item</b><div class="row"><div><label>Nome</label><input id="in" placeholder="Farinha de trigo"></div>
-  <div><label>Unidade</label><select id="iu">${u.map(x=>`<option>${x}</option>`).join("")}</select></div>
-  <div><label>Estoque mínimo</label><input id="im" inputmode="decimal" value="0"></div>
-  <div><label>Custo por unidade (R$)</label><input id="ic" inputmode="decimal" value="0"></div>
-  <button class="b" onclick="addInsumo()">Cadastrar item</button></div></div>
-  <div class="card"><b>Registrar movimento</b><div class="row"><div><label>Item</label><select id="mi">${opts(S.insumos,i=>i.nome+" ("+i.un+")")}</select></div>
-  <div><label>Tipo</label><select id="mt"><option value="e">Entrada (compra)</option><option value="s">Saída (perda, uso)</option><option value="c">Contagem (acertar saldo)</option></select></div>
-  <div><label>Quantidade</label><input id="mq" inputmode="decimal"></div>
-  <div><label>Novo custo/un. (só entrada)</label><input id="mc" inputmode="decimal"></div>
-  <div><label>Observação</label><input id="mo"></div><button class="b" onclick="movimento()">Registrar</button></div></div>
-  <h2>Saldo atual</h2>${S.insumos.length?S.insumos.map(i=>{const s=saldo(i.id);return `<div class="card"><div class="lin"><b>${esc(i.nome)}</b>${s<=i.min?'<span class="tag bad">repor</span>':'<span class="tag ok">ok</span>'}</div><div style="font-size:20px;font-weight:800">${num(s)} ${esc(i.un)}</div><div class="mut">Mínimo ${num(i.min)} · custo ${brl(i.custo)} por ${esc(i.un)}</div><button class="l" onclick="delInsumo('${i.id}')">Excluir item</button></div>`}).join(""):'<div class="card"><span class="mut">Cadastre o primeiro item acima.</span></div>'}
-  <h2>Movimentos de estoque</h2><div class="mut" style="margin-bottom:8px">Corrija o que for preciso nos campos. Quantidade negativa é saída.</div>${(()=>{const l=S.mov.slice().reverse();if(!l.length)return '<div class="card"><span class="mut">Sem movimentos.</span></div>';
-  return l.slice(0,nMov).map(m=>{const it=ins(m.i)||{nome:"?",un:""};
-  if(m.ref)return `<div class="card"><div class="lin"><b>${esc(it.nome)}</b><span class="mut">${dt(m.d)}</span></div><div><b style="color:var(--bad)">${num(m.q)} ${esc(it.un)}</b> <span class="mut">${esc(m.o)}</span></div><div class="mut">Para corrigir, use a aba Produção.</div></div>`;
-  return `<div class="card"><div class="lin"><b>${esc(it.nome)}</b><span class="mut">${dt(m.d)}</span></div>
-  <div class="row" style="margin-top:8px"><div><label>Data</label><input type="date" value="${m.d}" onchange="editMov('${m.id}','d',this.value)"></div>
-  <div><label>Quantidade (${esc(it.un)})</label><input inputmode="decimal" value="${m.q}" onchange="editMov('${m.id}','q',this.value)"></div>
-  <div><label>Observação</label><input value="${esc(m.o)}" onchange="editMov('${m.id}','o',this.value)"></div>
-  <button class="l" onclick="delMov('${m.id}')">Excluir movimento</button></div></div>`}).join("")+(l.length>nMov?`<button class="b" style="width:100%" onclick="maisMov()">Ver mais movimentos (${l.length-nMov})</button>`:"")})()}`};
+V.estoque=()=>{const l=S.mov.slice().reverse();
+  return `<div class="acoes"><button class="b" onclick="abrirNovoItem()">＋ Novo item</button><button class="b" onclick="abrirMov()">Registrar movimento</button></div>
+  <h2>Saldo atual</h2>${S.insumos.length?S.insumos.map(i=>{const sd=saldo(i.id);return `<div class="card"><div class="lin"><b>${esc(i.nome)}</b>${sd<=i.min?'<span class="tag bad">repor</span>':'<span class="tag ok">ok</span>'}</div><div style="font-size:20px;font-weight:800">${num(sd)} ${esc(i.un)}</div><div class="mut">Mínimo ${num(i.min)} · custo ${brl(i.custo)} por ${esc(i.un)}</div><div class="acoes" style="margin:10px 0 0"><button class="s" onclick="abrirItemEd('${i.id}')">Editar item</button><button class="s" onclick="abrirMov('${i.id}','e')">Movimentar</button></div></div>`}).join(""):'<div class="card"><span class="mut">Toque em Novo item para cadastrar o primeiro.</span></div>'}
+  <h2>Movimentos de estoque</h2>${l.length?l.slice(0,nMov).map(m=>{const it=ins(m.i)||{nome:"?",un:""};return `<div class="card"><div class="lin"><b>${esc(it.nome)}</b><span class="mut">${dt(m.d)}</span></div><div class="lin" style="margin-top:6px"><span><b style="color:var(${m.q<0?"--bad":"--brand"})">${m.q>0?"+":""}${num(m.q)} ${esc(it.un)}</b> <span class="mut">${esc(m.o)}</span></span>${m.ref?'<span class="mut">Edite na aba Produção</span>':`<button class="s" onclick="abrirMovEd('${m.id}')">Editar</button>`}</div></div>`}).join("")+(l.length>nMov?`<button class="b" style="width:100%" onclick="maisMov()">Ver mais movimentos (${l.length-nMov})</button>`:""):'<div class="card"><span class="mut">Sem movimentos.</span></div>'}`};
 
-V.fichas=()=>`<div class="card"><b>Novo produto</b><div class="row"><div><label>Nome</label><input id="pn" placeholder="Pão de queijo"></div>
-  <div><label>Preço de venda (R$)</label><input id="pp" inputmode="decimal"></div>
-  <div><label>Rendimento da receita (unidades)</label><input id="pr" inputmode="decimal" value="1"></div>
-  <button class="b" onclick="addProd()">Cadastrar produto</button></div></div>
-  ${S.prod.map(p=>{const c=custoProd(p),mg=p.preco?Math.round((p.preco-c)/p.preco*100):0;return `<details class="card" ${ab[p.id]?"open":""} ontoggle="ab['${p.id}']=this.open"><summary><b>${esc(p.nome)}</b> <span class="mut">${p.f.length} ingr. · custo ${brl(c)} · preço ${brl(p.preco)} · margem ${mg}%</span></summary><div class="row" style="margin-top:10px"><div><label>Nome</label><input value="${esc(p.nome)}" onchange="editProd('${p.id}','nome',this.value)"></div><div><label>Preço de venda (R$)</label><input inputmode="decimal" value="${p.preco}" onchange="editProd('${p.id}','preco',this.value)"></div><div><label>Rendimento (unidades)</label><input inputmode="decimal" value="${p.r}" onchange="editProd('${p.id}','r',this.value)"></div></div>
-  
-  <div>${p.f.map(x=>{const i=ins(x.i)||{nome:"?",un:"",custo:0};return `<div class="ing"><select onchange="trocaIng('${p.id}','${x.i}',this.value)">${S.insumos.map(o=>`<option value="${o.id}" ${o.id===x.i?"selected":""}>${esc(o.nome)}</option>`).join("")}</select><label style="margin-top:8px">Quantidade por receita</label><div class="f"><input inputmode="decimal" value="${x.q}" onchange="editQtd('${p.id}','${x.i}',this.value)"><span class="u">${esc(i.un)}</span><span class="c">${brl(x.q*i.custo)}</span></div><button class="l" onclick="delFicha('${p.id}','${x.i}')">Remover ingrediente</button></div>`}).join("")||'<div class="mut" style="padding:8px 0">Ficha vazia. Adicione os ingredientes.</div>'}</div>
-  <div class="row"><div><label>Ingrediente</label><select id="fi${p.id}">${opts(S.insumos,i=>i.nome+" ("+i.un+")")}</select></div>
-  <div><label>Qtd. por receita</label><input id="fq${p.id}" inputmode="decimal"></div><button class="b" onclick="addFicha('${p.id}')">Adicionar</button></div>
-  <button class="l" onclick="delProd('${p.id}')">Excluir produto</button></details>`}).join("")}`;
+V.fichas=()=>`<div class="acoes"><button class="b" onclick="abrirNovoProd()">＋ Novo produto</button></div>
+  <h2>Produtos</h2>${S.prod.length?S.prod.map(p=>{const c=custoProd(p),mg=p.preco?Math.round((p.preco-c)/p.preco*100):0;return `<div class="card"><div class="lin"><b>${esc(p.nome)}</b><span class="tag ${mg<0?"bad":"ok"}">margem ${mg}%</span></div><div class="mut">${p.f.length} ingr. · custo ${brl(c)} · preço ${brl(p.preco)}</div><button class="s" style="width:100%;margin-top:10px" onclick="abrirFicha('${p.id}')">Abrir ficha técnica</button></div>`}).join(""):'<div class="card"><span class="mut">Toque em Novo produto para cadastrar o primeiro.</span></div>'}`;
 
-V.producao=()=>`<div class="card"><b>Registrar produção</b><div class="mut">Os ingredientes saem do estoque e os produtos entram como prontos.</div>
-  <div class="row"><div><label>Produto</label><select id="xp">${opts(S.prod,p=>p.nome)}</select></div>
-  <div><label>Unidades produzidas</label><input id="xq" inputmode="decimal"></div><button class="b" onclick="produzir()">Registrar produção</button></div></div>
-  <h2>Histórico</h2><div class="mut" style="margin-bottom:8px">Corrija data ou unidades. Os ingredientes do estoque são ajustados junto.</div>${(()=>{const l=S.producoes.slice().reverse();if(!l.length)return '<div class="card"><span class="mut">Nenhuma produção.</span></div>';
-  return l.slice(0,nProd).map(x=>`<div class="card"><div class="lin"><b>${esc((pr(x.p)||{nome:"?"}).nome)}</b><span class="mut">${dt(x.d)}</span></div>
-  <div class="row" style="margin-top:8px"><div><label>Data</label><input type="date" value="${x.d}" onchange="editProducao('${x.id}','d',this.value)"></div>
-  <div><label>Unidades produzidas</label><input inputmode="decimal" value="${x.q}" onchange="editProducao('${x.id}','q',this.value)"></div>
-  <button class="l" onclick="delProducao('${x.id}')">Desfazer produção</button></div></div>`).join("")+(l.length>nProd?`<button class="b" style="width:100%" onclick="maisProd()">Ver mais produções (${l.length-nProd})</button>`:"")})()}`;
+V.producao=()=>{const l=S.producoes.slice().reverse();
+  return `<div class="acoes"><button class="b" onclick="abrirProducao()">＋ Registrar produção</button></div>
+  <h2>Histórico</h2>${l.length?l.slice(0,nProd).map(x=>`<div class="card"><div class="lin"><b>${esc((pr(x.p)||{nome:"?"}).nome)}</b><span class="mut">${dt(x.d)}</span></div><div class="lin" style="margin-top:6px"><b>${num(x.q)} un.</b><button class="s" onclick="abrirProdEd('${x.id}')">Editar</button></div></div>`).join("")+(l.length>nProd?`<button class="b" style="width:100%" onclick="maisProd()">Ver mais produções (${l.length-nProd})</button>`:""):'<div class="card"><span class="mut">Nenhuma produção.</span></div>'}`};
 
-V.vendas=()=>`<div class="card"><b>Registrar venda</b><div class="mut">Venda agora abate o estoque na hora. Encomenda agendada abate só quando você concluir a entrega.</div>
-  <div class="row"><div><label>Tipo</label><select id="vt" onchange="if(this.value==='ag'){$('vf').value='Outro';$('vg').value='n'}"><option value="ok">Vender agora</option><option value="ag">Agendar encomenda</option></select></div><div><label>Produto</label><select id="vp" onchange="preencher()">${S.prod.map(p=>`<option value="${p.id}">${esc(p.nome)} (${num(pronto(p.id))} prontos)</option>`).join("")}</select></div>
-  <div><label>Quantidade</label><input id="vq" inputmode="decimal" value="1"></div>
-  <div><label>Preço unitário (R$)</label><input id="vv" inputmode="decimal" value="${S.prod[0]?S.prod[0].preco:0}"></div>
-  <div><label>Nome do cliente</label><input id="vc" placeholder="Maria"></div>
-  <div><label>Data da encomenda</label><input id="vd" type="date" value="${hoje()}"></div>
-  <div><label>Data da entrega</label><input id="ve" type="date" value="${hoje()}"></div>
-  <div><label>Forma de pagamento</label><select id="vf"><option>Pix</option><option>Dinheiro</option><option>Cartão de débito</option><option>Cartão de crédito</option><option>Outro</option></select></div>
-  <div><label>Já pagou?</label><select id="vg"><option value="s">Sim</option><option value="n">Não</option></select></div>
-  <button class="b" onclick="vender()">Registrar venda</button></div></div>
+V.vendas=()=>`<div class="acoes"><button class="b" onclick="abrirVenda()">＋ Registrar venda</button></div>
   <h2>Vendas</h2>
   <div class="card"><div class="row"><div><label>Buscar cliente ou produto</label><input type="search" value="${esc(fv.q)}" oninput="fvSet('q',this.value)" placeholder="Maria, pão de queijo..."></div>
   <div><label>Período</label><select onchange="fvSet('per',this.value)">${[["todas","Todos"],["hoje","Hoje"],["sem","Últimos 7 dias"],["mes","Este mês"]].map(o=>`<option value="${o[0]}" ${fv.per===o[0]?"selected":""}>${o[1]}</option>`).join("")}</select></div>
@@ -269,18 +303,12 @@ V.vendas=()=>`<div class="card"><b>Registrar venda</b><div class="mut">Venda ago
   <div id="vres">${vendasLista()}</div>`;
 
 V.compras=()=>{const need={};S.prod.forEach(p=>p.f.forEach(x=>need[x.i]=(need[x.i]||0)+x.q*(S.plano[p.id]||0)/p.r));
-  const rows=S.insumos.filter(i=>need[i.id]>0).map(i=>({i,nd:need[i.id],buy:Math.max(0,need[i.id]-saldo(i.id))}));
-  return `<div class="card"><b>Previsão de produção</b><div class="mut">Quantas unidades pretende produzir?</div>
-  ${S.prod.map(p=>`<div class="row"><div><label>${esc(p.nome)}</label><input inputmode="decimal" value="${S.plano[p.id]||""}" onchange="setPlano('${p.id}',this.value)"></div></div>`).join("")||'<span class="mut">Cadastre produtos primeiro.</span>'}</div>
-  <h2>Necessidade de compra</h2><div class="card tw">${rows.length?`<table><tr><th>Item</th><th>Precisa</th><th>Tem</th><th>Comprar</th><th>Custo</th></tr>${rows.map(o=>`<tr><td>${esc(o.i.nome)}</td><td>${num(o.nd)} ${o.i.un}</td><td>${num(saldo(o.i.id))}</td><td><b>${o.buy?num(o.buy)+" "+o.i.un:"—"}</b></td><td>${brl(o.buy*o.i.custo)}</td></tr>`).join("")}</table>
-  <p><b>Total estimado: ${brl(rows.reduce((a,o)=>a+o.buy*o.i.custo,0))}</b></p>`:'<span class="mut">Informe a previsão acima para ver o que comprar.</span>'}</div>
-  <h2>Compras realizadas</h2>${(()=>{const l=S.mov.filter(compra).reverse();if(!l.length)return '<div class="card"><span class="mut">Nenhuma compra registrada. Use Entrada na aba Estoque.</span></div>';
-  return l.slice(0,nCompras).map(m=>{const i=ins(m.i)||{nome:"?",un:"",custo:0};return `<div class="card"><b>${esc(i.nome)}</b> <span class="mut">${dt(m.d)}${m.c?" · total "+brl(m.q*m.c):""}</span>
-  <div class="row" style="margin-top:8px"><div><label>Data</label><input type="date" value="${m.d}" onchange="editCompra('${m.id}','d',this.value)"></div>
-  <div><label>Quantidade (${esc(i.un)})</label><input inputmode="decimal" value="${m.q}" onchange="editCompra('${m.id}','q',this.value)"></div>
-  <div><label>Custo por ${esc(i.un)} (R$)</label><input inputmode="decimal" value="${m.c||""}" onchange="editCompra('${m.id}','c',this.value)"></div>
-  <div><label>Observação</label><input value="${esc(m.o)}" onchange="editCompra('${m.id}','o',this.value)"></div>
-  <button class="l" onclick="delCompra('${m.id}')">Excluir</button></div></div>`}).join("")+(l.length>nCompras?`<button class="b" onclick="mais()">Ver mais compras (${l.length-nCompras})</button>`:"")})()}`};
+  const rows=S.insumos.filter(i=>need[i.id]>0).map(i=>({i,nd:need[i.id],buy:Math.max(0,need[i.id]-saldo(i.id))})),pl=S.prod.filter(p=>S.plano[p.id]>0),l=S.mov.filter(compra).reverse();
+  return `<div class="acoes"><button class="b" onclick="abrirMov(null,'e')">＋ Registrar compra</button><button class="s" onclick="abrirPlano()">Previsão de produção</button></div>
+  <div class="mut" style="margin-bottom:8px">${pl.length?"Previsão: "+pl.map(p=>esc(p.nome)+" "+num(S.plano[p.id])).join(" · "):"Nenhuma previsão definida."}</div>
+  <h2>Necessidade de compra</h2><div class="card tw">${rows.length?`<table><tr><th>Item</th><th>Precisa</th><th>Tem</th><th>Comprar</th><th>Custo</th></tr>${rows.map(o=>`<tr><td>${esc(o.i.nome)}</td><td>${num(o.nd)} ${esc(o.i.un)}</td><td>${num(saldo(o.i.id))}</td><td><b>${o.buy?num(o.buy)+" "+esc(o.i.un):"—"}</b></td><td>${brl(o.buy*o.i.custo)}</td></tr>`).join("")}</table>
+  <p><b>Total estimado: ${brl(rows.reduce((a,o)=>a+o.buy*o.i.custo,0))}</b></p>`:'<span class="mut">Defina a previsão de produção para ver o que comprar.</span>'}</div>
+  <h2>Compras realizadas</h2>${l.length?l.slice(0,nCompras).map(m=>{const i=ins(m.i)||{nome:"?",un:""};return `<div class="card"><div class="lin"><b>${esc(i.nome)}</b><span class="mut">${dt(m.d)}</span></div><div class="lin" style="margin-top:6px"><span>${num(m.q)} ${esc(i.un)}${m.c?" · "+brl(m.c)+" por "+esc(i.un)+" · total "+brl(m.q*m.c):""}</span><button class="s" onclick="abrirMovEd('${m.id}')">Editar</button></div>${m.o&&m.o!=="Entrada"?`<div class="mut">${esc(m.o)}</div>`:""}</div>`}).join("")+(l.length>nCompras?`<button class="b" style="width:100%" onclick="mais()">Ver mais compras (${l.length-nCompras})</button>`:""):'<div class="card"><span class="mut">Nenhuma compra registrada. Toque em Registrar compra.</span></div>'}`};
 
 V.backup=()=>`<div class="card"><b>Backup automático</b><p class="mut">${esc(bkMsg)}</p>
   <p class="mut">Último backup baixado: ${ultBk()?dt(ultBk())+" (há "+diasBk()+" dia(s))":"nenhum ainda"}.</p>
@@ -292,7 +320,7 @@ V.backup=()=>`<div class="card"><b>Backup automático</b><p class="mut">${esc(bk
   <div class="card"><b>Restaurar</b><p class="mut">Substitui todos os dados atuais pelos do arquivo.</p><input type="file" accept=".json" onchange="restaurar(event)"></div>`;
 
 const TABS=[["painel","Painel"],["estoque","Estoque"],["fichas","Fichas"],["producao","Produção"],["vendas","Vendas"],["compras","Compras"],["backup","Backup"]];
-function render(){$("nav").innerHTML=TABS.map(t=>`<button class="${t[0]===tab?"on":""}" onclick="tab='${t[0]}';render();scrollTo(0,0)">${t[1]}</button>`).join("");$("v").innerHTML=V[tab]()}
+function render(){$("nav").innerHTML=TABS.map(t=>`<button class="${t[0]===tab?"on":""}" onclick="tab='${t[0]}';render();scrollTo(0,0)">${t[1]}</button>`).join("");$("v").innerHTML=V[tab]();if(sheet&&sheet.keep){const h=sheet.fn();if(h===null)fechar();else $("sheet-b").innerHTML=h}}
 render();
 hget().then(async h=>{if(!h)return;dir=h;try{needPerm=(await h.queryPermission({mode:"readwrite"}))!=="granted"}catch(e){}bkMsg=needPerm?"Pasta “"+h.name+"” salva. Toque em “Reativar pasta” para continuar os backups.":"Pasta de backup: “"+h.name+"”.";render()});
 if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js");
