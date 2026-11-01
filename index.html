@@ -64,6 +64,15 @@ button.s{font:inherit;font-weight:600;background:none;border:1px solid var(--bra
 #sheet-b{max-width:640px;margin:0 auto;padding:14px 14px 48px}
 #sheet .row{grid-template-columns:1fr}
 #sheet .row>button{width:100%}
+.ft{width:100%}
+.ft th{font-size:12px}
+.ft td{white-space:normal;vertical-align:middle}
+.ft td:first-child{min-width:112px}
+.ft td:nth-child(2){white-space:nowrap}
+.ft select,.ft input{min-height:42px;padding:6px 8px}
+.ft select{width:100%;min-width:0}
+.ft input{width:72px}
+.ft tr.total td{font-weight:700;border-top:2px solid var(--line);white-space:normal}
 </style>
 </head>
 <body>
@@ -224,15 +233,24 @@ function abrirNovoProd(){abrir("Novo produto",()=>`<div class="card"><div class=
   <div><label>Preço de venda (R$)</label><input id="pp" inputmode="decimal"></div>
   <div><label>Rendimento da receita (unidades)</label><input id="pr" inputmode="decimal" value="1"></div>
   <button class="b" onclick="addProd()">Cadastrar produto</button></div></div>`)}
-const fichaHTML=id=>{const p=pr(id);if(!p)return null;const c=custoProd(p),mg=p.preco?Math.round((p.preco-c)/p.preco*100):0;
-  return `<div class="card"><div class="mut">${p.f.length} ingr. · custo ${brl(c)} por unidade · margem ${mg}%</div></div>
-  <div class="card"><b>Dados do produto</b><div class="row" style="margin-top:8px"><div><label>Nome</label><input value="${esc(p.nome)}" onchange="editProd('${p.id}','nome',this.value)"></div>
+const fichaHTML=id=>{const p=pr(id);if(!p)return null;
+  const tot=p.f.reduce((a,x)=>a+x.q*((ins(x.i)||{}).custo||0),0),c=custoProd(p),mg=p.preco?Math.round((p.preco-c)/p.preco*100):0;
+  const linhas=p.f.map(x=>{const i=ins(x.i)||{nome:"?",un:"",custo:0};
+    return `<tr><td><select aria-label="Ingrediente" onchange="trocaIng('${p.id}','${x.i}',this.value)">${S.insumos.map(o=>`<option value="${o.id}" ${o.id===x.i?"selected":""}>${esc(o.nome)}</option>`).join("")}</select><div class="mut" style="font-size:12px">${brl(i.custo)} por ${esc(i.un)}</div></td>
+    <td><input inputmode="decimal" aria-label="Quantidade" value="${x.q}" onchange="editQtd('${p.id}','${x.i}',this.value)"> <span class="mut">${esc(i.un)}</span></td>
+    <td>${brl(x.q*i.custo)}</td>
+    <td><button class="l" aria-label="Remover ${esc(i.nome)}" onclick="delFicha('${p.id}','${x.i}')">✕</button></td></tr>`}).join("");
+  return `<div class="card"><b>Dados do produto</b><div class="row" style="margin-top:8px"><div><label>Nome</label><input value="${esc(p.nome)}" onchange="editProd('${p.id}','nome',this.value)"></div>
   <div><label>Preço de venda (R$)</label><input inputmode="decimal" value="${p.preco}" onchange="editProd('${p.id}','preco',this.value)"></div>
-  <div><label>Rendimento (unidades)</label><input inputmode="decimal" value="${p.r}" onchange="editProd('${p.id}','r',this.value)"></div></div></div>
-  <div class="card"><b>Ingredientes por receita</b>${p.f.map(x=>{const i=ins(x.i)||{nome:"?",un:"",custo:0};return `<div class="ing"><select onchange="trocaIng('${p.id}','${x.i}',this.value)">${S.insumos.map(o=>`<option value="${o.id}" ${o.id===x.i?"selected":""}>${esc(o.nome)}</option>`).join("")}</select><label style="margin-top:8px">Quantidade por receita</label><div class="f"><input inputmode="decimal" value="${x.q}" onchange="editQtd('${p.id}','${x.i}',this.value)"><span class="u">${esc(i.un)}</span><span class="c">${brl(x.q*i.custo)}</span></div><button class="l" onclick="delFicha('${p.id}','${x.i}')">Remover ingrediente</button></div>`}).join("")||'<div class="mut" style="padding:8px 0">Ficha vazia. Adicione os ingredientes abaixo.</div>'}</div>
+  <div><label>Rendimento da receita (unidades)</label><input inputmode="decimal" value="${p.r}" onchange="editProd('${p.id}','r',this.value)"></div></div></div>
+  <p class="mut">Cada linha diz quanto do ingrediente é usado em uma receita, que rende ${num(p.r)} unidade(s). O custo usa o custo cadastrado de cada item no estoque.</p>
+  ${p.f.length?`<div class="card tw" style="padding:6px"><table class="ft"><thead><tr><th>Ingrediente</th><th>Quantidade</th><th>Custo</th><th></th></tr></thead><tbody>${linhas}
+  <tr class="total"><td colspan="2">Custo da receita</td><td>${brl(tot)}</td><td></td></tr>
+  <tr class="total"><td colspan="2">Custo por unidade (rende ${num(p.r)})</td><td>${brl(c)}</td><td></td></tr></tbody></table></div>`:'<div class="card"><span class="mut">Ficha sem ingredientes. Adicione abaixo.</span></div>'}
+  <p class="mut">Preço de venda ${brl(p.preco)} · lucro por unidade ${brl(p.preco-c)} · margem ${mg}%</p>
   <div class="card"><b>Adicionar ingrediente</b><div class="row" style="margin-top:8px"><div><label>Ingrediente</label><select id="fi${p.id}">${opts(S.insumos,i=>i.nome+" ("+i.un+")")}</select></div>
   <div><label>Quantidade por receita</label><input id="fq${p.id}" inputmode="decimal"></div><button class="b" onclick="addFicha('${p.id}')">Adicionar</button></div></div>
-  <button class="l" onclick="delProd('${p.id}')">Excluir produto</button>`};
+  <div class="acoes"><button class="l" onclick="delProd('${p.id}')">Excluir produto</button><button class="b" onclick="fechar()">Concluir</button></div>`};
 function abrirFicha(id){const p=pr(id);if(!p)return;abrir(p.nome,()=>fichaHTML(id),true)}
 function abrirPlano(){if(!S.prod.length)return toast("Cadastre produtos primeiro.");
   abrir("Previsão de produção",()=>`<div class="card"><div class="mut" style="margin-bottom:8px">Quantas unidades pretende produzir?</div><div class="row">${S.prod.map(p=>`<div><label>${esc(p.nome)}</label><input inputmode="decimal" value="${S.plano[p.id]||""}" onchange="setPlano('${p.id}',this.value)"></div>`).join("")}</div></div>`,true)}
