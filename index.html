@@ -61,7 +61,9 @@ button.s{font:inherit;font-weight:600;background:none;border:1px solid var(--bra
 .sh-h{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px;background:var(--bg);border-bottom:1px solid var(--line)}
 .sh-h b{font-size:18px}
 .sh-h button{font:inherit;min-height:46px;padding:8px 14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;cursor:pointer}
-#sheet-b{max-width:640px;margin:0 auto;padding:14px 14px 48px}
+#sheet-b{max-width:640px;margin:0 auto;padding:14px 14px 8px}
+#sheet-f{max-width:640px;margin:0 auto;padding:0 14px 48px}
+.ft tr.novo td{border-top:2px dashed var(--line)}
 #sheet .row{grid-template-columns:1fr}
 #sheet .row>button{width:100%}
 .ft{width:100%}
@@ -79,7 +81,7 @@ button.s{font:inherit;font-weight:600;background:none;border:1px solid var(--bra
 <header><h1>Delícias Caseiras da Naty</h1><nav id="nav"></nav></header>
 <main id="v"></main>
 <div id="toast" role="status"></div>
-<div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-t"><div class="sh-h"><button onclick="fechar()">‹ Voltar</button><b id="sheet-t"></b></div><div id="sheet-b"></div></div>
+<div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-t"><div class="sh-h"><button onclick="fechar()">‹ Voltar</button><b id="sheet-t"></b></div><div id="sheet-b"></div><div id="sheet-f"></div></div>
 <script>
 const K="meuforno.v1",EMPTY=()=>({insumos:[],mov:[],prod:[],producoes:[],vendas:[],plano:{}});
 let S=EMPTY();try{const r=localStorage.getItem(K);if(r)S=Object.assign(EMPTY(),JSON.parse(r))}catch(e){}
@@ -172,8 +174,8 @@ function vendasLista(){const h=hoje(),sem=new Date(Date.now()-new Date().getTime
 let sheet=null,sheetOn=false,skipPop=0;
 const UN=["kg","g","L","ml","un","dúzia","pacote"],fx=v=>Math.round(v*1e6)/1e6;
 const rendBk=()=>{if(!sheet)render()};
-function abrir(t,fn,keep){sheet={fn,keep:!!keep};$("sheet-t").textContent=t;const h=fn();$("sheet-b").innerHTML=h===null?"":h;$("sheet").style.display="block";$("sheet").scrollTop=0;document.body.style.overflow="hidden";if(!sheetOn){history.pushState({sh:1},"");sheetOn=true}}
-function hideSheet(){sheetOn=false;sheet=null;$("sheet").style.display="none";$("sheet-b").innerHTML="";document.body.style.overflow=""}
+function abrir(t,fn,keep,foot){sheet={fn,keep:!!keep};$("sheet-f").innerHTML=foot||"";$("sheet-t").textContent=t;const h=fn();$("sheet-b").innerHTML=h===null?"":h;$("sheet").style.display="block";$("sheet").scrollTop=0;document.body.style.overflow="hidden";if(!sheetOn){history.pushState({sh:1},"");sheetOn=true}}
+function hideSheet(){sheetOn=false;sheet=null;$("sheet").style.display="none";$("sheet-b").innerHTML="";$("sheet-f").innerHTML="";document.body.style.overflow=""}
 function fechar(){if(!sheetOn)return;hideSheet();skipPop++;history.back()}
 addEventListener("popstate",()=>{if(skipPop>0){skipPop--;return}if(sheetOn)hideSheet()});
 const atalhos=()=>`<div class="acoes"><button class="b" onclick="abrirVenda()">＋ Nova venda</button><button class="b" onclick="abrirProducao()">＋ Produção</button><button class="s" onclick="abrirMov(null,'e')">＋ Compra</button><button class="s" onclick="abrirMov()">Movimento</button></div>`;
@@ -236,22 +238,25 @@ function abrirNovoProd(){abrir("Novo produto",()=>`<div class="card"><div class=
 const fichaHTML=id=>{const p=pr(id);if(!p)return null;
   const tot=p.f.reduce((a,x)=>a+x.q*((ins(x.i)||{}).custo||0),0),c=custoProd(p),mg=p.preco?Math.round((p.preco-c)/p.preco*100):0;
   const linhas=p.f.map(x=>{const i=ins(x.i)||{nome:"?",un:"",custo:0};
-    return `<tr><td><select aria-label="Ingrediente" onchange="trocaIng('${p.id}','${x.i}',this.value)">${S.insumos.map(o=>`<option value="${o.id}" ${o.id===x.i?"selected":""}>${esc(o.nome)}</option>`).join("")}</select><div class="mut" style="font-size:12px">${brl(i.custo)} por ${esc(i.un)}</div></td>
+    return `<tr><td><select aria-label="Ingrediente" onchange="trocaIng('${p.id}','${x.i}',this.value)">${S.insumos.map(o=>`<option value="${o.id}" ${o.id===x.i?"selected":""}>${esc(o.nome)}</option>`).join("")}</select></td>
     <td><input inputmode="decimal" aria-label="Quantidade" value="${x.q}" onchange="editQtd('${p.id}','${x.i}',this.value)"> <span class="mut">${esc(i.un)}</span></td>
     <td>${brl(x.q*i.custo)}</td>
     <td><button class="l" aria-label="Remover ${esc(i.nome)}" onclick="delFicha('${p.id}','${x.i}')">✕</button></td></tr>`}).join("");
+  const novo=`<tr class="novo"><td><select id="fi${p.id}" aria-label="Novo ingrediente" onchange="$('fu${p.id}').textContent=(ins(this.value)||{un:''}).un"><option value="">Ingrediente</option>${S.insumos.map(o=>`<option value="${o.id}">${esc(o.nome)}</option>`).join("")}</select></td>
+    <td><input id="fq${p.id}" inputmode="decimal" placeholder="Quantidade" aria-label="Quantidade do novo ingrediente"> <span class="mut" id="fu${p.id}"></span></td>
+    <td colspan="2"><button class="b" style="width:100%;min-height:42px;padding:6px 10px" onclick="addFicha('${p.id}')">Adicionar</button></td></tr>`;
   return `<div class="card"><b>Dados do produto</b><div class="row" style="margin-top:8px"><div><label>Nome</label><input value="${esc(p.nome)}" onchange="editProd('${p.id}','nome',this.value)"></div>
   <div><label>Preço de venda (R$)</label><input inputmode="decimal" value="${p.preco}" onchange="editProd('${p.id}','preco',this.value)"></div>
   <div><label>Rendimento da receita (unidades)</label><input inputmode="decimal" value="${p.r}" onchange="editProd('${p.id}','r',this.value)"></div></div></div>
   <p class="mut">Cada linha diz quanto do ingrediente é usado em uma receita, que rende ${num(p.r)} unidade(s). O custo usa o custo cadastrado de cada item no estoque.</p>
-  ${p.f.length?`<div class="card tw" style="padding:6px"><table class="ft"><thead><tr><th>Ingrediente</th><th>Quantidade</th><th>Custo</th><th></th></tr></thead><tbody>${linhas}
+  <div class="card tw" style="padding:6px"><table class="ft"><thead><tr><th>Ingrediente</th><th>Quantidade</th><th>Custo</th><th></th></tr></thead><tbody>${linhas}${novo}
   <tr class="total"><td colspan="2">Custo da receita</td><td>${brl(tot)}</td><td></td></tr>
-  <tr class="total"><td colspan="2">Custo por unidade (rende ${num(p.r)})</td><td>${brl(c)}</td><td></td></tr></tbody></table></div>`:'<div class="card"><span class="mut">Ficha sem ingredientes. Adicione abaixo.</span></div>'}
-  <p class="mut">Preço de venda ${brl(p.preco)} · lucro por unidade ${brl(p.preco-c)} · margem ${mg}%</p>
-  <div class="card"><b>Adicionar ingrediente</b><div class="row" style="margin-top:8px"><div><label>Ingrediente</label><select id="fi${p.id}">${opts(S.insumos,i=>i.nome+" ("+i.un+")")}</select></div>
-  <div><label>Quantidade por receita</label><input id="fq${p.id}" inputmode="decimal"></div><button class="b" onclick="addFicha('${p.id}')">Adicionar</button></div></div>
-  <div class="acoes"><button class="s" onclick="abrirCopia('${p.id}')">Copiar ficha</button><button class="b" onclick="fechar()">Concluir</button></div>
-  <button class="l" style="width:100%" onclick="delProd('${p.id}')">Excluir produto</button>`};
+  <tr class="total"><td colspan="2">Custo por unidade (rende ${num(p.r)})</td><td>${brl(c)}</td><td></td></tr></tbody></table></div>
+  <p class="mut">Preço de venda ${brl(p.preco)} · lucro por unidade ${brl(p.preco-c)} · margem ${mg}%</p>`};
+function salvarFicha(id){const i=g("fi"+id),q=n("fq"+id);
+  if(i&&q>0)addFicha(id);
+  else if(i||q>0)return toast("Complete o ingrediente e a quantidade, ou deixe os dois em branco.");
+  fechar()}
 const nomeKey=t=>String(t).normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLowerCase();
 function abrirCopia(id){const p=pr(id);if(!p)return;abrir("Copiar ficha",()=>`<div class="card"><div class="mut">Copiando a ficha de</div><b>${esc(p.nome)}</b><div class="mut" style="margin-top:6px">${p.f.length} ingr. · rendimento ${num(p.r)} · preço ${brl(p.preco)}</div></div>
   <div class="card"><div class="row"><div><label>Nome do novo produto (diferente dos existentes)</label><input id="cn" placeholder="Ex.: ${esc(p.nome)} integral" autocomplete="off"></div>
@@ -261,7 +266,7 @@ function copiarFicha(id){const p=pr(id);if(!p)return;const nome=g("cn").trim();
   if(!nome)return toast("Informe o nome da nova ficha.");
   if(S.prod.some(x=>nomeKey(x.nome)===nomeKey(nome)))return toast("Já existe um produto com esse nome. Use um nome diferente.");
   const nid=uid();S.prod.push({id:nid,nome,preco:p.preco,r:p.r,f:p.f.map(x=>({i:x.i,q:x.q}))});save();abrirFicha(nid)}
-function abrirFicha(id){const p=pr(id);if(!p)return;abrir(p.nome,()=>fichaHTML(id),true)}
+function abrirFicha(id){const p=pr(id);if(!p)return;abrir(p.nome,()=>fichaHTML(id),true,`<div class="acoes"><button class="s" onclick="abrirCopia('${id}')">Copiar ficha</button><button class="b" onclick="salvarFicha('${id}')">Salvar</button></div><button class="l" style="width:100%" onclick="delProd('${id}')">Excluir produto</button>`)}
 function abrirPlano(){if(!S.prod.length)return toast("Cadastre produtos primeiro.");
   abrir("Previsão de produção",()=>`<div class="card"><div class="mut" style="margin-bottom:8px">Quantas unidades pretende produzir?</div><div class="row">${S.prod.map(p=>`<div><label>${esc(p.nome)}</label><input inputmode="decimal" value="${S.plano[p.id]||""}" onchange="setPlano('${p.id}',this.value)"></div>`).join("")}</div></div>`,true)}
 function abrirVenda(){if(!S.prod.length)return toast("Cadastre produtos na aba Fichas.");abrir("Registrar venda",()=>`<div class="card"><b>Registrar venda</b><div class="mut">Venda agora abate o estoque na hora. Encomenda agendada abate só quando você concluir a entrega.</div>
